@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VSCode Copilot Setup Guide — AI PDF Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#30363d;
+  --border:#30363d;--border2:#484f58;
+  --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+  --green:#3fb950;--blue:#58a6ff;--purple:#bc8cff;
+  --orange:#ffa657;--red:#ff7b72;--yellow:#e3b341;
+  --cyan:#39d353;
+  --radius:10px;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;
+  min-height:100vh;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Header ── */
+.header{
+  background:linear-gradient(135deg,#0d1117 0%,#1a1f2e 50%,#0d1117 100%);
+  border-bottom:1px solid var(--border);
+  padding:48px 24px 40px;text-align:center;
+  position:relative;overflow:hidden;
+}
+.header::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 0%,rgba(88,166,255,.08) 0%,transparent 70%);
+}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.2);
+  color:var(--blue);border-radius:20px;padding:4px 14px;
+  font-size:12px;font-weight:500;letter-spacing:.04em;margin-bottom:20px;
+}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header h1{font-size:clamp(24px,4vw,40px);font-weight:700;color:var(--text);margin-bottom:10px;position:relative}
+.header h1 span{color:var(--blue)}
+.header p{font-size:15px;color:var(--text2);max-width:560px;margin:0 auto 28px;position:relative}
+.time-chips{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;position:relative}
+.chip{
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:6px 14px;font-size:12px;font-weight:500;color:var(--text2);
+  display:flex;align-items:center;gap:6px;
+}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.dot-green{background:var(--green)}
+.dot-blue{background:var(--blue)}
+.dot-purple{background:var(--purple)}
+.dot-orange{background:var(--orange)}
+
+/* ── Progress bar ── */
+.progress-container{
+  position:sticky;top:0;z-index:100;
+  background:rgba(13,17,23,.95);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);padding:10px 24px;
+}
+.progress-inner{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.progress-label{font-size:12px;color:var(--text2);white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.progress-track{flex:1;height:4px;background:var(--bg3);border-radius:2px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:2px;transition:width .4s ease;width:0%}
+.progress-count{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+
+/* ── Steps nav ── */
+.steps-nav{
+  display:flex;gap:0;overflow-x:auto;padding:16px 24px;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+  scrollbar-width:none;
+}
+.steps-nav::-webkit-scrollbar{display:none}
+.step-pill{
+  display:flex;align-items:center;gap:8px;padding:6px 16px;
+  border-radius:20px;font-size:12px;font-weight:500;white-space:nowrap;
+  cursor:pointer;transition:all .2s;color:var(--text2);background:none;border:none;
+}
+.step-pill:hover{background:var(--bg3);color:var(--text)}
+.step-pill.active{background:var(--blue);color:#fff}
+.step-pill.done{color:var(--green)}
+.step-pill .num{
+  width:18px;height:18px;border-radius:50%;
+  background:var(--bg4);color:var(--text2);
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;
+  flex-shrink:0;
+}
+.step-pill.active .num{background:rgba(255,255,255,.2);color:#fff}
+.step-pill.done .num{background:var(--green);color:#fff}
+
+/* ── Main layout ── */
+.main{max-width:900px;margin:0 auto;padding:32px 24px 80px}
+
+/* ── Phase block ── */
+.phase{
+  margin-bottom:40px;border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+  transition:border-color .2s;
+}
+.phase:target,.phase.active-phase{border-color:var(--blue)}
+.phase-header{
+  background:var(--bg2);padding:18px 20px;
+  display:flex;align-items:center;gap:14px;
+  border-bottom:1px solid var(--border);cursor:pointer;
+  user-select:none;
+}
+.phase-num{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;flex-shrink:0;
+  background:var(--bg3);color:var(--text2);
+  border:1px solid var(--border);
+  transition:all .2s;
+}
+.phase.done-phase .phase-num{background:var(--green);color:#fff;border-color:var(--green)}
+.phase.active-phase .phase-num{background:var(--blue);color:#fff;border-color:var(--blue)}
+.phase-title{flex:1}
+.phase-title h2{font-size:15px;font-weight:600;color:var(--text)}
+.phase-title p{font-size:12px;color:var(--text2);margin-top:2px}
+.phase-badge{
+  font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;
+  flex-shrink:0;
+}
+.badge-required{background:rgba(255,123,114,.1);color:var(--red);border:1px solid rgba(255,123,114,.2)}
+.badge-auto{background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.2)}
+.badge-optional{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.2)}
+.phase-status{font-size:11px;padding:3px 10px;border-radius:12px;background:var(--bg3);color:var(--text2)}
+.phase-status.done{background:rgba(63,185,80,.1);color:var(--green)}
+
+.phase-body{padding:20px;background:var(--bg)}
+
+/* ── Step items ── */
+.step{display:flex;gap:14px;margin-bottom:20px}
+.step:last-child{margin-bottom:0}
+.step-icon{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--bg3);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-size:13px;margin-top:1px;
+  cursor:pointer;transition:all .2s;
+}
+.step-icon:hover{border-color:var(--green)}
+.step-icon.checked{background:var(--green);border-color:var(--green);color:#fff}
+.step-content{flex:1}
+.step-content h3{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px}
+.step-content p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px}
+.step-content p:last-child{margin-bottom:0}
+
+/* ── Code blocks ── */
+.code-block{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;margin:10px 0;
+}
+.code-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 14px;border-bottom:1px solid var(--border);
+  background:var(--bg3);
+}
+.code-label{font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:6px}
+.code-label .lang{color:var(--blue)}
+.copy-btn{
+  background:none;border:1px solid var(--border);border-radius:5px;
+  color:var(--text2);font-size:11px;padding:3px 10px;cursor:pointer;
+  transition:all .15s;font-family:'JetBrains Mono',monospace;
+  display:flex;align-items:center;gap:5px;
+}
+.copy-btn:hover{border-color:var(--blue);color:var(--blue)}
+.copy-btn.copied{border-color:var(--green);color:var(--green)}
+pre{
+  padding:14px 16px;overflow-x:auto;
+  font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;
+  color:var(--text);
+}
+
+/* ── Copilot prompt blocks ── */
+.copilot-block{
+  background:linear-gradient(135deg,rgba(88,166,255,.05),rgba(188,140,255,.05));
+  border:1px solid rgba(88,166,255,.2);border-radius:8px;
+  margin:12px 0;overflow:hidden;
+}
+.copilot-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 14px;border-bottom:1px solid rgba(88,166,255,.15);
+  background:rgba(88,166,255,.06);
+}
+.copilot-label{
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;font-weight:600;color:var(--blue);
+  font-family:'JetBrains Mono',monospace;letter-spacing:.04em;
+}
+.copilot-icon{
+  width:18px;height:18px;border-radius:4px;
+  background:var(--blue);display:flex;align-items:center;justify-content:center;
+  font-size:10px;
+}
+.copilot-prompt{
+  padding:14px 16px;font-family:'JetBrains Mono',monospace;
+  font-size:12.5px;line-height:1.8;color:var(--text);
+  white-space:pre-wrap;word-break:break-word;
+}
+.copilot-prompt .at{color:var(--blue);font-weight:600}
+.copilot-prompt .keyword{color:var(--purple)}
+
+/* ── Alert boxes ── */
+.alert{
+  display:flex;gap:10px;padding:12px 14px;
+  border-radius:8px;margin:12px 0;font-size:13px;
+}
+.alert-info{background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.2);color:var(--text2)}
+.alert-warn{background:rgba(227,179,65,.08);border:1px solid rgba(227,179,65,.2);color:var(--yellow)}
+.alert-success{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);color:var(--green)}
+.alert-error{background:rgba(255,123,114,.08);border:1px solid rgba(255,123,114,.2);color:var(--red)}
+.alert-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.alert-body{flex:1}
+.alert-body strong{font-weight:600;display:block;margin-bottom:3px}
+
+/* ── Inline code ── */
+code{
+  background:var(--bg3);border:1px solid var(--border);
+  padding:1px 6px;border-radius:4px;
+  font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--orange);
+}
+
+/* ── Terminal preview ── */
+.terminal{
+  background:#000;border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;margin:12px 0;
+}
+.terminal-bar{
+  background:#1a1a1a;padding:8px 14px;display:flex;align-items:center;gap:7px;
+  border-bottom:1px solid #2a2a2a;
+}
+.terminal-dot{width:11px;height:11px;border-radius:50%}
+.td-r{background:#ff5f57}.td-y{background:#febc2e}.td-g{background:#28c840}
+.terminal-title{flex:1;text-align:center;font-size:11px;color:#666;font-family:'JetBrains Mono',monospace}
+.terminal-body{padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.8}
+.t-prompt{color:#58a6ff}.t-cmd{color:#e6edf3}.t-out{color:#8b949e}
+.t-ok{color:#3fb950}.t-err{color:#ff7b72}.t-warn{color:#e3b341}
+
+/* ── Divider ── */
+.divider{height:1px;background:var(--border);margin:32px 0}
+
+/* ── Error reference ── */
+.error-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+.error-table th{text-align:left;padding:8px 12px;background:var(--bg3);color:var(--text2);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.error-table td{padding:10px 12px;border-top:1px solid var(--border);vertical-align:top}
+.error-table tr:hover td{background:var(--bg2)}
+.error-table td:first-child{color:var(--red);font-family:'JetBrains Mono',monospace;font-size:12px;white-space:nowrap}
+.error-table td:last-child{color:var(--text2)}
+
+/* ── Final checklist ── */
+.checklist{list-style:none;margin:12px 0}
+.checklist li{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 14px;border-radius:8px;margin-bottom:6px;
+  background:var(--bg2);border:1px solid var(--border);
+  font-size:13px;cursor:pointer;transition:all .15s;
+}
+.checklist li:hover{border-color:var(--border2)}
+.checklist li.checked{background:rgba(63,185,80,.06);border-color:rgba(63,185,80,.2)}
+.checklist li .cb{
+  width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border2);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;margin-top:1px;font-size:11px;
+}
+.checklist li.checked .cb{background:var(--green);border-color:var(--green);color:#fff}
+.checklist li span{flex:1;color:var(--text2)}
+.checklist li.checked span{color:var(--text)}
+
+/* ── Quick ref ── */
+.url-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:14px;margin:8px 0;display:flex;align-items:center;gap:12px;
+}
+.url-pill{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:4px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  color:var(--blue);white-space:nowrap;
+}
+.url-desc{font-size:13px;color:var(--text2);flex:1}
+
+/* ── Done banner ── */
+.done-banner{
+  background:linear-gradient(135deg,rgba(63,185,80,.1),rgba(57,211,83,.05));
+  border:1px solid rgba(63,185,80,.3);border-radius:var(--radius);
+  padding:28px;text-align:center;margin-top:40px;
+}
+.done-banner h2{font-size:20px;font-weight:700;color:var(--green);margin-bottom:8px}
+.done-banner p{color:var(--text2);font-size:14px}
+
+/* ── Responsive ── */
+@media(max-width:600px){
+  .main{padding:16px 12px 60px}
+  .header{padding:32px 16px 28px}
+  .steps-nav{padding:10px 12px}
+  pre{font-size:11.5px}
+  .copilot-prompt{font-size:11.5px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="badge">
+    <span class="badge-dot"></span>
+    Step-by-Step Interactive Guide
+  </div>
+  <h1>VSCode + <span>Copilot</span> Setup</h1>
+  <p>Complete guide to run the AI PDF Chatbot from scratch. Every command is ready to copy-paste into Copilot Chat.</p>
+  <div class="time-chips">
+    <div class="chip"><span class="dot dot-green"></span>15 min total</div>
+    <div class="chip"><span class="dot dot-blue"></span>No experience needed</div>
+    <div class="chip"><span class="dot dot-purple"></span>Free stack</div>
+    <div class="chip"><span class="dot dot-orange"></span>Windows focused</div>
+  </div>
+</div>
+
+<!-- ── Progress ── -->
+<div class="progress-container">
+  <div class="progress-inner">
+    <span class="progress-label">Progress</span>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <span class="progress-count" id="progressCount">0 / 7 phases</span>
+  </div>
+</div>
+
+<!-- ── Phase Nav ── -->
+<div class="steps-nav" id="stepsNav">
+  <button class="step-pill active" data-phase="0" onclick="scrollToPhase(0)"><span class="num">1</span>VSCode</button>
+  <button class="step-pill" data-phase="1" onclick="scrollToPhase(1)"><span class="num">2</span>Extensions</button>
+  <button class="step-pill" data-phase="2" onclick="scrollToPhase(2)"><span class="num">3</span>Open Project</button>
+  <button class="step-pill" data-phase="3" onclick="scrollToPhase(3)"><span class="num">4</span>API Key</button>
+  <button class="step-pill" data-phase="4" onclick="scrollToPhase(4)"><span class="num">5</span>Backend</button>
+  <button class="step-pill" data-phase="5" onclick="scrollToPhase(5)"><span class="num">6</span>Frontend</button>
+  <button class="step-pill" data-phase="6" onclick="scrollToPhase(6)"><span class="num">7</span>Run & Test</button>
+</div>
+
+<!-- ── Main Content ── -->
+<div class="main">
+
+<!-- PHASE 1: VSCode -->
+<div class="phase" id="phase-0">
+  <div class="phase-header" onclick="togglePhase(0)">
+    <div class="phase-num">1</div>
+    <div class="phase-title">
+      <h2>Install VSCode</h2>
+      <p>The code editor — skip if already installed</p>
+    </div>
+    <span class="phase-badge badge-required">Required once</span>
+    <span class="phase-status" id="status-0">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Download VSCode</h3>
+        <p>Go to <code>https://code.visualstudio.com</code> → click the big blue "Download for Windows" button.</p>
+        <div class="alert alert-info">
+          <span class="alert-icon">ℹ</span>
+          <div class="alert-body">Choose the <strong>System Installer</strong> (64-bit) for most Windows PCs.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>Install with these options checked</h3>
+        <p>During installation, on the "Select Additional Tasks" screen — check ALL these boxes:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Installer checkboxes</span></div>
+          <pre>✓  Add "Open with Code" action to Windows Explorer file context menu
+✓  Add "Open with Code" action to Windows Explorer directory context menu
+✓  Register Code as an editor for supported file types
+✓  Add to PATH (important — allows "code" command in terminal)</pre>
+        </div>
+        <div class="alert alert-warn">
+          <span class="alert-icon">⚠</span>
+          <div class="alert-body"><strong>"Add to PATH" is critical!</strong> Without it, the <code>code</code> command won't work in terminal.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">3</div>
+      <div class="step-content">
+        <h3>Also install Python and Node.js</h3>
+        <p>VSCode needs these tools to run the project:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Downloads needed</span></div>
+          <pre>Python 3.11+  →  https://python.org/downloads
+               ⚠ CHECK "Add Python to PATH" during install!
+
+Node.js 18+   →  https://nodejs.org
+               Choose the LTS (Long-Term Support) version</pre>
+        </div>
+        <p>After installing, restart your PC to make sure PATH updates take effect.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 2: Extensions -->
+<div class="phase" id="phase-1">
+  <div class="phase-header" onclick="togglePhase(1)">
+    <div class="phase-num">2</div>
+    <div class="phase-title">
+      <h2>Install VSCode Extensions</h2>
+      <p>Add Copilot and developer tools</p>
+    </div>
+    <span class="phase-badge badge-required">Required once</span>
+    <span class="phase-status" id="status-1">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="alert alert-info">
+      <span class="alert-icon">ℹ</span>
+      <div class="alert-body">Open VSCode → Press <strong>Ctrl+Shift+X</strong> to open the Extensions panel on the left sidebar.</div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Install GitHub Copilot (the AI assistant)</h3>
+        <p>Search for each one and click <strong>Install</strong>:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Search in Extensions panel</span></div>
+          <pre>"GitHub Copilot"       by GitHub  ← The AI code helper
+"GitHub Copilot Chat"  by GitHub  ← The chat interface</pre>
+        </div>
+        <div class="alert alert-warn">
+          <span class="alert-icon">⚠</span>
+          <div class="alert-body">
+            <strong>Copilot requires a subscription.</strong>
+            Students can get it FREE:<br/>
+            → GitHub Student Developer Pack: <code>education.github.com/pack</code><br/>
+            → Or start 30-day free trial at: <code>github.com/features/copilot</code>
+          </div>
+        </div>
+        <p>After installing, VSCode prompts you to <strong>Sign in with GitHub</strong> — click it and log in.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>Install developer extensions</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Install these too (search & click Install)</span></div>
+          <pre>"Python"                    by Microsoft
+"Pylance"                   by Microsoft
+"ESLint"                    by Microsoft
+"Prettier - Code formatter" by Prettier
+"Tailwind CSS IntelliSense" by Brad Cornes</pre>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">3</div>
+      <div class="step-content">
+        <h3>Open Copilot Chat panel</h3>
+        <p>Press <code>Ctrl+Shift+I</code> — a chat panel appears on the right side. This is where you'll paste all commands.</p>
+        <div class="alert alert-success">
+          <span class="alert-icon">✓</span>
+          <div class="alert-body">You'll see a text box at the bottom that says "Ask Copilot". That's your command input.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 3: Open Project -->
+<div class="phase" id="phase-2">
+  <div class="phase-header" onclick="togglePhase(2)">
+    <div class="phase-num">3</div>
+    <div class="phase-title">
+      <h2>Open the Project in VSCode</h2>
+      <p>Load your pdf-chatbot folder</p>
+    </div>
+    <span class="phase-badge badge-required">Required</span>
+    <span class="phase-status" id="status-2">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Extract the ZIP file first</h3>
+        <p>Find <code>pdf-chatbot-complete.zip</code> → Right-click → <strong>Extract All</strong> → choose a location (e.g. Desktop or Documents).</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>Open folder in VSCode</h3>
+        <p>Choose ONE of these methods:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Method A — Drag & Drop (easiest)</span></div>
+          <pre>Drag the "pdf-chatbot" folder directly onto the VSCode window</pre>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Method B — File menu</span></div>
+          <pre>VSCode → File → Open Folder → select "pdf-chatbot" → Open</pre>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Method C — Right-click</span></div>
+          <pre>Right-click the "pdf-chatbot" folder → "Open with Code"</pre>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">3</div>
+      <div class="step-content">
+        <h3>Confirm you can see the files</h3>
+        <p>In the left Explorer panel you should see:</p>
+        <div class="terminal">
+          <div class="terminal-bar"><span class="terminal-dot td-r"></span><span class="terminal-dot td-y"></span><span class="terminal-dot td-g"></span><span class="terminal-title">EXPLORER — PDF-CHATBOT</span></div>
+          <div class="terminal-body">
+            <span class="t-ok">▶ backend/</span><br/>
+            <span class="t-ok">▶ frontend/</span><br/>
+            <span class="t-out">  .gitignore</span><br/>
+            <span class="t-out">  SETUP.txt</span><br/>
+            <span class="t-out">  README.md</span><br/>
+            <span class="t-out">  setup.bat</span><br/>
+            <span class="t-out">  start.bat</span>
+          </div>
+        </div>
+        <div class="alert alert-warn">
+          <span class="alert-icon">⚠</span>
+          <div class="alert-body">If VSCode asks "Do you trust the authors?" — click <strong>Yes, I trust the authors</strong>. This is your own project.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">4</div>
+      <div class="step-content">
+        <h3>Open Copilot Chat and verify</h3>
+        <p>Press <code>Ctrl+Shift+I</code>, then paste this into Copilot:</p>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, '@workspace I just opened this PDF chatbot project. List the main files and folders you can see, and confirm the project structure looks correct.')">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> I just opened this PDF chatbot project. List the main files and folders you can see, and confirm the project structure looks correct.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 4: API Key -->
+<div class="phase" id="phase-3">
+  <div class="phase-header" onclick="togglePhase(3)">
+    <div class="phase-num">4</div>
+    <div class="phase-title">
+      <h2>Set Up Groq API Key</h2>
+      <p>The free AI brain — takes 2 minutes</p>
+    </div>
+    <span class="phase-badge badge-required">Required</span>
+    <span class="phase-status" id="status-3">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="alert alert-info">
+      <span class="alert-icon">ℹ</span>
+      <div class="alert-body"><strong>Groq is completely free.</strong> No credit card. 10 million tokens/month free. Sign up takes 60 seconds.</div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Get your free API key</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Steps to get key</span></div>
+          <pre>1. Open browser → go to: https://console.groq.com/keys
+2. Click "Sign Up" (use Google or GitHub account)
+3. Click "Create API Key"
+4. Give it any name (e.g. "pdf-chatbot")
+5. COPY the key immediately — it starts with "gsk_"
+   (You won't be able to see it again after closing!)</pre>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>Add the key to the project</h3>
+        <p>In VSCode Explorer (left panel): click <code>backend</code> → click <code>.env</code></p>
+        <p>Find this line and replace with your key:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">backend/.env — change this line</span><button class="copy-btn" onclick="copyCode(this, 'GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxx')">Copy</button></div>
+          <pre><span style="color:#ff7b72">GROQ_API_KEY=your_groq_api_key_here</span>   ← BEFORE (delete this)
+<span style="color:#3fb950">GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxx</span>   ← AFTER (paste your key)</pre>
+        </div>
+        <p>Press <code>Ctrl+S</code> to save the file.</p>
+        <div class="alert alert-warn">
+          <span class="alert-icon">⚠</span>
+          <div class="alert-body">Never share your <code>.env</code> file or commit it to GitHub. It contains your secret key.</div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">3</div>
+      <div class="step-content">
+        <h3>Ask Copilot to verify the key format</h3>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `@workspace Open backend/.env and check if the GROQ_API_KEY is set correctly. It should start with 'gsk_' and not say 'your_groq_api_key_here'. Don't show me the full key value, just confirm the format looks right.`)">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> Open backend/.env and check if the GROQ_API_KEY is set correctly. It should start with 'gsk_' and not say 'your_groq_api_key_here'. Don't show me the full key value, just confirm the format looks right.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 5: Backend -->
+<div class="phase" id="phase-4">
+  <div class="phase-header" onclick="togglePhase(4)">
+    <div class="phase-num">5</div>
+    <div class="phase-title">
+      <h2>Set Up Python Backend</h2>
+      <p>Install dependencies and verify everything works</p>
+    </div>
+    <span class="phase-badge badge-auto">Copilot does this</span>
+    <span class="phase-status" id="status-4">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="alert alert-info">
+      <span class="alert-icon">ℹ</span>
+      <div class="alert-body">Open a terminal in VSCode: press <strong>Ctrl+`</strong> (the backtick key, top-left of keyboard). A terminal opens at the bottom.</div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Paste this command into Copilot Chat</h3>
+        <p>This sets up the entire Python environment automatically:</p>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `@workspace Set up the Python backend step by step. Run these commands in the terminal one at a time, waiting for each to finish:
+
+1. cd backend
+2. python -m venv venv
+3. venv\\Scripts\\activate
+4. python -m pip install --upgrade pip
+5. pip install -r requirements.txt
+6. mkdir uploads
+7. mkdir chroma_db
+
+After each command tell me if it succeeded or failed.`)">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> Set up the Python backend step by step. Run these commands in the terminal one at a time, waiting for each to finish:
+
+1. cd backend
+2. python -m venv venv
+3. venv\Scripts\activate
+4. python -m pip install --upgrade pip
+5. pip install -r requirements.txt
+6. mkdir uploads
+7. mkdir chroma_db
+
+After each command tell me if it succeeded or failed.</div>
+        </div>
+        <div class="alert alert-warn">
+          <span class="alert-icon">⚠</span>
+          <div class="alert-body"><strong>Step 5 takes 3-5 minutes</strong> — many packages are being downloaded. You'll see lots of scrolling text. That is normal. Wait until it stops.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>What the terminal looks like when working</h3>
+        <div class="terminal">
+          <div class="terminal-bar"><span class="terminal-dot td-r"></span><span class="terminal-dot td-y"></span><span class="terminal-dot td-g"></span><span class="terminal-title">Terminal 1 — backend setup</span></div>
+          <div class="terminal-body">
+            <span class="t-prompt">PS C:\Users\You\pdf-chatbot></span> <span class="t-cmd">cd backend</span><br/>
+            <span class="t-prompt">PS C:\...\backend></span> <span class="t-cmd">python -m venv venv</span><br/>
+            <span class="t-prompt">PS C:\...\backend></span> <span class="t-cmd">venv\Scripts\activate</span><br/>
+            <span class="t-prompt">(venv) PS C:\...\backend></span> <span class="t-cmd">pip install -r requirements.txt</span><br/>
+            <span class="t-out">Collecting fastapi==0.115.0...</span><br/>
+            <span class="t-out">Collecting langchain==0.3.7...</span><br/>
+            <span class="t-out">  ... (lots more lines) ...</span><br/>
+            <span class="t-ok">Successfully installed fastapi-0.115.0 langchain-0.3.7 ...</span>
+          </div>
+        </div>
+        <div class="alert alert-success">
+          <span class="alert-icon">✓</span>
+          <div class="alert-body">The key sign of success: <code>(venv)</code> appears before your prompt. This means the virtual environment is active.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">3</div>
+      <div class="step-content">
+        <h3>Run the health check</h3>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `@workspace Run the pre-launch health check. In the terminal (make sure you're in the backend folder with venv activated):
+
+python test_setup.py
+
+Show me the full output and tell me if all checks passed with green checkmarks.`)">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> Run the pre-launch health check. In the terminal (make sure you're in the backend folder with venv activated):
+
+python test_setup.py
+
+Show me the full output and tell me if all checks passed with green checkmarks.</div>
+        </div>
+        <p>You want to see 7 checkmarks. If any fail, paste the error back to Copilot and say <em>"fix this error"</em>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 6: Frontend -->
+<div class="phase" id="phase-5">
+  <div class="phase-header" onclick="togglePhase(5)">
+    <div class="phase-num">6</div>
+    <div class="phase-title">
+      <h2>Set Up React Frontend</h2>
+      <p>Install Node.js packages for the UI</p>
+    </div>
+    <span class="phase-badge badge-auto">Copilot does this</span>
+    <span class="phase-status" id="status-5">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Open a second terminal</h3>
+        <p>You need a new terminal — don't close the backend one.</p>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">How to open a new terminal in VSCode</span></div>
+          <pre>Method A: Press Ctrl+Shift+`  (backtick)
+Method B: Click the "+" button in the terminal panel
+Method C: Terminal menu → New Terminal</pre>
+        </div>
+        <p>You'll see two terminals listed at the bottom — you can switch between them.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>Install frontend packages</h3>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `@workspace In a new terminal (not the backend one), install the frontend packages:
+
+1. cd frontend
+2. npm install
+
+Wait for it to finish. It should say 'added X packages'. Tell me when done.`)">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> In a new terminal (not the backend one), install the frontend packages:
+
+1. cd frontend
+2. npm install
+
+Wait for it to finish. It should say 'added X packages'. Tell me when done.</div>
+        </div>
+        <div class="terminal">
+          <div class="terminal-bar"><span class="terminal-dot td-r"></span><span class="terminal-dot td-y"></span><span class="terminal-dot td-g"></span><span class="terminal-title">Terminal 2 — frontend setup</span></div>
+          <div class="terminal-body">
+            <span class="t-prompt">PS C:\...\pdf-chatbot></span> <span class="t-cmd">cd frontend</span><br/>
+            <span class="t-prompt">PS C:\...\frontend></span> <span class="t-cmd">npm install</span><br/>
+            <span class="t-out">npm warn deprecated ...</span><br/>
+            <span class="t-out">added 312 packages, and audited 313 packages in 45s</span><br/>
+            <span class="t-ok">found 0 vulnerabilities</span>
+          </div>
+        </div>
+        <div class="alert alert-info">
+          <span class="alert-icon">ℹ</span>
+          <div class="alert-body">npm "deprecated" warnings are normal and harmless — ignore them. Only errors matter.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHASE 7: Run & Test -->
+<div class="phase" id="phase-6">
+  <div class="phase-header" onclick="togglePhase(6)">
+    <div class="phase-num">7</div>
+    <div class="phase-title">
+      <h2>Run the App and Test It</h2>
+      <p>Launch both servers and use the chatbot</p>
+    </div>
+    <span class="phase-badge badge-required">Every time you use it</span>
+    <span class="phase-status" id="status-6">Pending</span>
+  </div>
+  <div class="phase-body">
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">1</div>
+      <div class="step-content">
+        <h3>Start the backend server (Terminal 1)</h3>
+        <p>Click on <strong>Terminal 1</strong> (the backend one, with <code>(venv)</code>):</p>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `@workspace Start the backend server. In Terminal 1 (backend folder, venv activated):
+
+uvicorn main:app --reload --port 8000
+
+Wait until you see 'Application startup complete' and tell me the exact message shown.`)">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> Start the backend server. In Terminal 1 (backend folder, venv activated):
+
+uvicorn main:app --reload --port 8000
+
+Wait until you see 'Application startup complete' and tell me the exact message shown.</div>
+        </div>
+        <div class="terminal">
+          <div class="terminal-bar"><span class="terminal-dot td-r"></span><span class="terminal-dot td-y"></span><span class="terminal-dot td-g"></span><span class="terminal-title">Terminal 1 — backend running</span></div>
+          <div class="terminal-body">
+            <span class="t-prompt">(venv) PS C:\...\backend></span> <span class="t-cmd">uvicorn main:app --reload --port 8000</span><br/>
+            <span class="t-out">INFO:     Will watch for changes in these directories: [...]</span><br/>
+            <span class="t-out">INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)</span><br/>
+            <span class="t-out">INFO:     Started reloader process [12345]</span><br/>
+            <span class="t-ok">INFO:     Application startup complete.</span>
+          </div>
+        </div>
+        <div class="alert alert-success">
+          <span class="alert-icon">✓</span>
+          <div class="alert-body">When you see <strong>"Application startup complete"</strong> — backend is ready. Keep this terminal open!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">2</div>
+      <div class="step-content">
+        <h3>Start the frontend server (Terminal 2)</h3>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `@workspace In Terminal 2 (frontend folder), start the frontend dev server:
+
+npm run dev
+
+Wait until you see 'Local: http://localhost:5173' and tell me when ready.`)">Copy</button>
+          </div>
+          <div class="copilot-prompt"><span class="at">@workspace</span> In Terminal 2 (frontend folder), start the frontend dev server:
+
+npm run dev
+
+Wait until you see 'Local: http://localhost:5173' and tell me when ready.</div>
+        </div>
+        <div class="terminal">
+          <div class="terminal-bar"><span class="terminal-dot td-r"></span><span class="terminal-dot td-y"></span><span class="terminal-dot td-g"></span><span class="terminal-title">Terminal 2 — frontend running</span></div>
+          <div class="terminal-body">
+            <span class="t-prompt">PS C:\...\frontend></span> <span class="t-cmd">npm run dev</span><br/><br/>
+            <span class="t-ok">  VITE v5.4.10  ready in 432 ms</span><br/><br/>
+            <span class="t-out">  ➜  </span><span class="t-ok">Local</span><span class="t-out">:   http://localhost:5173/</span><br/>
+            <span class="t-out">  ➜  Network: use --host to expose</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">3</div>
+      <div class="step-content">
+        <h3>Open the app in browser</h3>
+        <div class="copilot-block">
+          <div class="copilot-header">
+            <span class="copilot-label"><span class="copilot-icon">🤖</span>PASTE INTO COPILOT CHAT</span>
+            <button class="copy-btn" onclick="copyPrompt(this, `Both servers are running. Open http://localhost:5173 in my default browser. Also tell me how to verify the backend is working by checking http://localhost:8000/health`)">Copy</button>
+          </div>
+          <div class="copilot-prompt">Both servers are running. Open http://localhost:5173 in my default browser. Also tell me how to verify the backend is working by checking http://localhost:8000/health</div>
+        </div>
+        <p>Or just click this link: <code>http://localhost:5173</code></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon" onclick="checkStep(this)">4</div>
+      <div class="step-content">
+        <h3>Test the full chatbot flow</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="code-label">Do this in the browser</span></div>
+          <pre>1. Drag any PDF file onto the upload zone in the browser
+   (use a textbook, research paper, or any PDF you have)
+
+2. Wait for the green "ready!" toast notification
+   ⚠ FIRST UPLOAD: takes 30-60 seconds
+     The AI model (90MB) downloads automatically once
+     All future uploads will be fast
+
+3. Type this question in the chat:
+   "What is this document about?"
+
+4. Press Enter
+
+5. Watch the answer appear word-by-word (streaming)
+
+6. Click the blue "sources found" bar under the answer
+   to see which page the answer came from</pre>
+        </div>
+        <div class="alert alert-success">
+          <span class="alert-icon">🎉</span>
+          <div class="alert-body"><strong>If you see a streaming answer with page citations — your app is working!</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Error Reference ── -->
+<div class="divider"></div>
+<h2 style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:16px">⚡ Common Errors — Quick Fixes</h2>
+<p style="font-size:13px;color:var(--text2);margin-bottom:16px">If you hit an error, copy the message and paste it into Copilot Chat saying <em>"I got this error: [paste]. How do I fix it?"</em></p>
+
+<table class="error-table">
+  <tr><th>Error</th><th>What it means & fix</th></tr>
+  <tr>
+    <td>'python' is not recognized</td>
+    <td>Python not in PATH. Reinstall Python from python.org, check "Add Python to PATH" during install. Then restart VSCode.</td>
+  </tr>
+  <tr>
+    <td>venv\Scripts\activate not recognized</td>
+    <td>You're in PowerShell with execution policy blocked. Run: <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code> then try again.</td>
+  </tr>
+  <tr>
+    <td>chromadb install fails</td>
+    <td>Run: <code>pip install chromadb --upgrade</code>. If still failing, try: <code>pip install chromadb==0.5.15 --no-cache-dir</code></td>
+  </tr>
+  <tr>
+    <td>GROQ_API_KEY not set / invalid</td>
+    <td>Open <code>backend/.env</code>, make sure key starts with <code>gsk_</code> and is not the placeholder text. Save the file (Ctrl+S).</td>
+  </tr>
+  <tr>
+    <td>Port 8000 already in use</td>
+    <td>Another app is using port 8000. Run: <code>netstat -ano | findstr :8000</code>, then kill that process, or change to port 8001.</td>
+  </tr>
+  <tr>
+    <td>npm: command not found</td>
+    <td>Node.js not installed. Go to nodejs.org, install LTS version, restart VSCode.</td>
+  </tr>
+  <tr>
+    <td>First upload very slow (60s+)</td>
+    <td>Completely normal! HuggingFace embedding model downloads once (~90MB). All future uploads take seconds.</td>
+  </tr>
+  <tr>
+    <td>Frontend shows blank white page</td>
+    <td>Open browser dev tools (F12) → Console tab → paste the red error into Copilot.</td>
+  </tr>
+  <tr>
+    <td>CORS error in browser console</td>
+    <td>Backend isn't running. Check Terminal 1 shows "Application startup complete". Restart it if needed.</td>
+  </tr>
+</table>
+
+<!-- ── Final Checklist ── -->
+<div class="divider"></div>
+<h2 style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">✅ Final Checklist — Click Each When Done</h2>
+<p style="font-size:13px;color:var(--text2);margin-bottom:16px">Track your progress here:</p>
+<ul class="checklist" id="finalChecklist">
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>VSCode installed with all options</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>GitHub Copilot extension installed and signed in</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>Project folder opened in VSCode</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>Groq API key added to backend/.env</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>Python venv created and packages installed</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>test_setup.py passes all 7 checks</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>npm install completed in frontend/</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>Backend running on port 8000</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>Frontend running on port 5173</span></li>
+  <li onclick="toggleCheck(this)"><span class="cb"></span><span>PDF uploaded and question answered successfully</span></li>
+</ul>
+
+<!-- ── Quick Reference ── -->
+<div class="divider"></div>
+<h2 style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:12px">🔗 Key URLs</h2>
+<div class="url-card"><span class="url-pill">http://localhost:5173</span><span class="url-desc">The chatbot app — main UI</span></div>
+<div class="url-card"><span class="url-pill">http://localhost:8000/docs</span><span class="url-desc">Auto-generated API docs — test endpoints here</span></div>
+<div class="url-card"><span class="url-pill">http://localhost:8000/health</span><span class="url-desc">Quick backend health check — should return {"status":"ok"}</span></div>
+
+<!-- ── Restart Instructions ── -->
+<div class="divider"></div>
+<h2 style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px">🔄 How to Restart Next Time</h2>
+<p style="font-size:13px;color:var(--text2);margin-bottom:14px">Every time you open VSCode to work on this project, paste this into Copilot:</p>
+<div class="copilot-block">
+  <div class="copilot-header">
+    <span class="copilot-label"><span class="copilot-icon">🤖</span>RESTART COMMAND — paste every session</span>
+    <button class="copy-btn" onclick="copyPrompt(this, `@workspace Start both servers for this project:
+
+Terminal 1 (backend):
+  cd backend
+  venv\\Scripts\\activate
+  uvicorn main:app --reload --port 8000
+
+Terminal 2 (frontend):
+  cd frontend
+  npm run dev
+
+Then open http://localhost:5173 in the browser.`)">Copy</button>
+  </div>
+  <div class="copilot-prompt"><span class="at">@workspace</span> Start both servers for this project:
+
+Terminal 1 (backend):
+  cd backend
+  venv\Scripts\activate
+  uvicorn main:app --reload --port 8000
+
+Terminal 2 (frontend):
+  cd frontend
+  npm run dev
+
+Then open http://localhost:5173 in the browser.</div>
+</div>
+
+<!-- ── Done Banner ── -->
+<div class="done-banner">
+  <h2>🎉 You're all set!</h2>
+  <p>Your AI PDF Chatbot is running. Upload any PDF and start asking questions.<br/>
+  For exam help, open <strong>VIVA_GUIDE.md</strong> in VSCode.</p>
+</div>
+
+</div><!-- end main -->
+
+<script>
+// ── Phase tracking ──────────────────────────────────────────────────────────
+const totalPhases = 7
+let doneMask = 0
+
+function togglePhase(idx) {
+  const phase = document.getElementById('phase-' + idx)
+  const body = phase.querySelector('.phase-body')
+  const isHidden = body.style.display === 'none'
+  body.style.display = isHidden ? 'block' : 'none'
+}
+
+function markPhaseDone(idx) {
+  doneMask |= (1 << idx)
+  const phase = document.getElementById('phase-' + idx)
+  const status = document.getElementById('status-' + idx)
+  phase.classList.add('done-phase')
+  phase.classList.remove('active-phase')
+  status.textContent = 'Done'
+  status.classList.add('done')
+  updateProgress()
+  updateNav()
+}
+
+function updateProgress() {
+  const done = [...Array(totalPhases)].filter((_,i) => doneMask & (1<<i)).length
+  const pct = (done / totalPhases) * 100
+  document.getElementById('progressFill').style.width = pct + '%'
+  document.getElementById('progressCount').textContent = done + ' / ' + totalPhases + ' phases'
+}
+
+function updateNav() {
+  for (let i = 0; i < totalPhases; i++) {
+    const pill = document.querySelector(`[data-phase="${i}"]`)
+    if (doneMask & (1 << i)) pill.classList.add('done')
+  }
+}
+
+function scrollToPhase(idx) {
+  document.getElementById('phase-' + idx).scrollIntoView({ behavior: 'smooth', block: 'start' })
+  document.querySelectorAll('.step-pill').forEach(p => p.classList.remove('active'))
+  document.querySelector(`[data-phase="${idx}"]`).classList.add('active')
+  document.getElementById('phase-' + idx).classList.add('active-phase')
+}
+
+// ── Step checkboxes ─────────────────────────────────────────────────────────
+function checkStep(el) {
+  el.classList.toggle('checked')
+  el.textContent = el.classList.contains('checked') ? '✓' : el.dataset.num || '?'
+
+  // Check if all steps in this phase are checked → mark phase done
+  const phase = el.closest('.phase')
+  const phaseIdx = parseInt(phase.id.split('-')[1])
+  const allSteps = phase.querySelectorAll('.step-icon')
+  const allChecked = [...allSteps].every(s => s.classList.contains('checked'))
+  if (allChecked) markPhaseDone(phaseIdx)
+}
+
+// Assign numbers to step icons on load
+document.querySelectorAll('.step-icon').forEach((el, i) => {
+  const siblings = el.closest('.phase-body').querySelectorAll('.step-icon')
+  const num = [...siblings].indexOf(el) + 1
+  el.dataset.num = num
+  el.textContent = num
+})
+
+// ── Final checklist ─────────────────────────────────────────────────────────
+function toggleCheck(li) {
+  li.classList.toggle('checked')
+  const cb = li.querySelector('.cb')
+  cb.textContent = li.classList.contains('checked') ? '✓' : ''
+}
+
+// ── Copy buttons ─────────────────────────────────────────────────────────────
+function copyPrompt(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent
+    btn.textContent = '✓ Copied!'
+    btn.classList.add('copied')
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied') }, 2000)
+  })
+}
+
+function copyCode(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent
+    btn.textContent = '✓ Copied!'
+    btn.classList.add('copied')
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied') }, 2000)
+  })
+}
+
+// Auto-add copy buttons to all code blocks that don't have them
+document.querySelectorAll('.code-block').forEach(block => {
+  const header = block.querySelector('.code-header')
+  if (header && !header.querySelector('.copy-btn')) {
+    const pre = block.querySelector('pre')
+    if (pre) {
+      const btn = document.createElement('button')
+      btn.className = 'copy-btn'
+      btn.textContent = 'Copy'
+      btn.onclick = () => copyPrompt(btn, pre.textContent)
+      header.appendChild(btn)
+    }
+  }
+})
+
+// Intersection observer to update nav
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const idx = parseInt(entry.target.id.split('-')[1])
+      document.querySelectorAll('.step-pill').forEach(p => p.classList.remove('active'))
+      const pill = document.querySelector(`[data-phase="${idx}"]`)
+      if (pill) pill.classList.add('active')
+    }
+  })
+}, { threshold: 0.3 })
+
+document.querySelectorAll('.phase').forEach(p => observer.observe(p))
+</script>
+</body>
+</html>

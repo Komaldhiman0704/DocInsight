@@ -1,0 +1,129 @@
+# ============================================================
+#  AI PDF CHATBOT - COMPLETE SETUP (Read this first!)
+#  Everything you need to get the project running
+# ============================================================
+
+STEP 0 — PREREQUISITES (install these first)
+─────────────────────────────────────────────
+  Python 3.11+   → https://python.org/downloads
+                   ✓ During install: CHECK "Add Python to PATH"
+
+  Node.js 18+    → https://nodejs.org (LTS version)
+
+  Groq API Key   → https://console.groq.com/keys
+  (FREE account, no credit card needed)
+
+─────────────────────────────────────────────
+STEP 1 — ADD YOUR GROQ KEY
+─────────────────────────────────────────────
+  Open: backend\.env
+  Find: GROQ_API_KEY=your_groq_api_key_here
+  Replace with your actual key:
+        GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
+
+─────────────────────────────────────────────
+STEP 2 — INSTALL (run ONCE)
+─────────────────────────────────────────────
+  Double-click: setup.bat
+  OR open Command Prompt here and run:
+        setup.bat
+
+  This installs all Python + Node dependencies.
+  Takes 3-5 minutes. HuggingFace model (~90MB)
+  downloads on first chat automatically.
+
+─────────────────────────────────────────────
+STEP 3 — START THE APP (every time)
+─────────────────────────────────────────────
+  Double-click: start.bat
+  OR run: start.bat
+
+  Opens two windows:
+    • Backend  → http://localhost:8000
+    • Frontend → http://localhost:5173
+
+  Open http://localhost:5173 in your browser.
+
+─────────────────────────────────────────────
+STEP 4 — USE THE APP
+─────────────────────────────────────────────
+  1. Drag a PDF onto the upload zone
+  2. Wait for "ready!" toast message
+  3. Type your question and press Enter
+  4. See streaming answer + page citations!
+
+─────────────────────────────────────────────
+TROUBLESHOOTING
+─────────────────────────────────────────────
+  Problem: "python is not recognized"
+  Fix: Reinstall Python and check "Add to PATH"
+
+  Problem: "pip install" fails on chromadb
+  Fix: pip install chromadb --upgrade
+
+  Problem: First chat is slow (30-60 seconds)
+  Fix: Normal! HuggingFace model loading once.
+       After that, responses are fast.
+
+  Problem: Port 8000 already in use
+  Fix: Open start.bat, change 8000 to 8001
+       Also update vite.config.js proxy target
+
+  Problem: GROQ_API_KEY error
+  Fix: Open backend\.env, check key is correct
+       Key must start with "gsk_"
+
+─────────────────────────────────────────────
+VERIFY EVERYTHING WORKS (optional)
+─────────────────────────────────────────────
+  cd backend
+  venv\Scripts\activate
+  python test_setup.py
+
+  Should show all green checkmarks.
+
+─────────────────────────────────────────────
+PROJECT STRUCTURE
+─────────────────────────────────────────────
+  pdf-chatbot/
+  ├── SETUP.txt              ← You are here
+  ├── README.md              ← Full documentation
+  ├── VIVA_GUIDE.md          ← Exam Q&A guide
+  ├── DEPLOYMENT.md          ← Free cloud deploy
+  ├── demo_preview.html      ← Open in browser for UI demo
+  ├── setup.bat              ← Windows install script
+  ├── start.bat              ← Windows run script
+  ├── backend/
+  │   ├── main.py            ← FastAPI app
+  │   ├── config.py          ← Settings
+  │   ├── requirements.txt   ← Python packages
+  │   ├── .env               ← YOUR API KEYS GO HERE
+  │   ├── test_setup.py      ← Health check
+  │   ├── routers/
+  │   │   ├── upload.py      ← PDF upload endpoint
+  │   │   ├── chat.py        ← Chat + streaming
+  │   │   └── documents.py   ← List/delete docs
+  │   └── services/
+  │       ├── vector_store.py ← ChromaDB + embeddings
+  │       ├── llm.py          ← Groq/Ollama/OpenAI
+  │       ├── rag_chain.py    ← RAG pipeline
+  │       └── document_store.py ← PDF metadata
+  └── frontend/
+      ├── index.html
+      ├── package.json
+      ├── vite.config.js
+      ├── tailwind.config.js
+      └── src/
+          ├── App.jsx          ← Main layout
+          ├── main.jsx         ← React entry
+          ├── components/
+          │   ├── ChatMessage.jsx
+          │   ├── ChatInput.jsx
+          │   ├── UploadZone.jsx
+          │   ├── DocumentList.jsx
+          │   └── SourceCard.jsx
+          ├── hooks/
+          │   ├── useDarkMode.js
+          │   └── useVoiceInput.js
+          ├── utils/api.js
+          └── styles/globals.css
