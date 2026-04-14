@@ -10,7 +10,7 @@ from typing import AsyncGenerator
 import logging
 
 from services.llm import get_llm
-from services.vector_store import get_retriever
+from services.vector_store import get_retriever, get_docs_with_scores
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +26,17 @@ Return ONLY the rephrased question, nothing else."""),
 ])
 
 QA_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a helpful AI assistant answering questions based on PDF documents.
+    ("system", """You are an expert AI analyst providing comprehensive, engaging answers based on PDF documents.
 
-Use ONLY the context below to answer. If the answer is not in the context, say:
-"I couldn't find information about that in the uploaded documents."
-
-Be concise and accurate. When possible, mention the page number where you found the info.
+CRITICAL INSTRUCTIONS:
+- NEVER include "Sources:", "Page references:", citations, links, URLs, or any source attribution in your answer
+- NEVER mention page numbers, document names, or where information came from
+- Provide ONLY the factual content and analysis
+- Format with headers, bullet points, or sections when appropriate
+- Include context and connections between ideas
+- Highlight key insights and important details
+- Maintain a professional, informative tone
+- If information isn't in the documents, state clearly: "I couldn't find specific information about that in the uploaded documents."
 
 Context from documents:
 {context}
@@ -39,6 +44,26 @@ Context from documents:
     MessagesPlaceholder(variable_name="chat_history"),
     ("human", "{question}"),
 ])
+
+FOLLOWUP_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """As an expert analyst, generate exactly 3 insightful follow-up questions that deepen understanding of the topic.
+
+Guidelines for follow-up questions:
+- Each should naturally extend the conversation and explore related concepts
+- Focus on deeper insights, implications, relationships, or practical applications
+- Make questions specific to the document content, not generic
+- Keep each under 12 words for clarity
+- Ensure they're all answerable from the document
+- Arrange from most relevant to exploratory
+
+Return ONLY a JSON array of exactly 3 strings without numbering.
+Example: ["How do these factors interact with market conditions?", "What are the long-term implications?", "How does this compare to industry standards?"]
+
+Original question: {question}
+Answer given: {answer}"""),
+    ("human", "Generate 3 insightful follow-up questions as a JSON array.")
+])
+
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -79,6 +104,93 @@ def extract_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
+def calculate_confidence(similarity_scores: list[float]) -> dict:
+    """
+    Calculate confidence level from similarity scores with multi-factor analysis.
+    
+    Args:
+        similarity_scores: List of retrieval similarity scores (typically 0.0-1.0)
+        
+    Returns:
+        dict with: confidence (str), relevance_score (float), source_count (int)
+    """
+    if not similarity_scores:
+        return {
+            "confidence": "low",
+            "relevance_score": 0.0,
+            "source_count": 0,
+        }
+    
+    # Normalize scores to 0-1 range
+    normalized_scores = []
+    for score in similarity_scores:
+        normalized = max(0.0, min(1.0, score))
+        normalized_scores.append(normalized)
+    
+    # Calculate average relevance score
+    avg_score = sum(normalized_scores) / len(normalized_scores) if normalized_scores else 0.0
+    max_score = max(normalized_scores) if normalized_scores else 0.0
+    
+    # Multi-factor confidence calculation:
+    # 1. Average relevance of retrieved chunks
+    # 2. Peak relevance of best matching chunk  
+    # 3. Number of relevant sources (more sources = more reliable)
+    source_factor = min(1.0, len(normalized_scores) / 5.0)  # Bonus for multiple sources (max 5)
+    
+    # Composite confidence score
+    composite_score = (avg_score * 0.6) + (max_score * 0.3) + (source_factor * 0.1)
+    
+    # Determine confidence level with smoother thresholds
+    if composite_score >= 0.70:
+        confidence = "high"
+    elif composite_score >= 0.45:
+        confidence = "medium"
+    else:
+        confidence = "low"
+    
+    return {
+        "confidence": confidence,
+        "relevance_score": round(avg_score, 2),
+        "source_count": len(similarity_scores),
+    }
+
+
+async def generate_suggestions(question: str, answer: str) -> list[str]:
+    """
+    Generate follow-up question suggestions.
+    
+    Args:
+        question: The original question asked
+        answer: The generated answer
+        
+    Returns:
+        List of 3 follow-up questions (or empty list on failure)
+    """
+    try:
+        llm = get_llm()
+        followup_chain = FOLLOWUP_PROMPT | llm | StrOutputParser()
+        response = await followup_chain.ainvoke({
+            "question": question,
+            "answer": answer,
+        })
+        
+        # Try to parse JSON response
+        import json
+        suggestions = json.loads(response.strip())
+        
+        # Validate it's a list of strings
+        if isinstance(suggestions, list) and len(suggestions) == 3:
+            if all(isinstance(s, str) for s in suggestions):
+                return suggestions
+        
+        logger.warning(f"Invalid suggestions format: {response}")
+        return []
+        
+    except Exception as e:
+        logger.warning(f"Failed to generate suggestions: {e}")
+        return []
+
+
 # ── Non-streaming RAG ─────────────────────────────────────────────────────────
 
 async def run_rag_chain(
@@ -87,7 +199,6 @@ async def run_rag_chain(
     doc_ids: list[str] | None = None,
 ) -> dict:
     llm = get_llm()
-    retriever = get_retriever(doc_ids)
     lc_history = build_chat_history(chat_history)
 
     # Step 1: Rephrase if there's history
@@ -101,8 +212,10 @@ async def run_rag_chain(
     else:
         standalone_question = question
 
-    # Step 2: Retrieve
-    docs = await retriever.ainvoke(standalone_question)
+    # Step 2: Retrieve with scores
+    docs_with_scores = get_docs_with_scores(standalone_question, doc_ids)
+    docs = [doc for doc, score in docs_with_scores]
+    scores = [score for doc, score in docs_with_scores]
     context = format_docs(docs)
 
     # Step 3: Generate
@@ -113,9 +226,19 @@ async def run_rag_chain(
         "context": context,
     })
 
+    # Step 4: Calculate confidence metrics
+    confidence_data = calculate_confidence(scores)
+
+    # Step 5: Generate follow-up suggestions
+    suggestions = await generate_suggestions(question, answer)
+
     return {
         "answer": answer,
         "sources": extract_sources(docs),
+        "suggestions": suggestions,
+        "confidence": confidence_data["confidence"],
+        "relevance_score": confidence_data["relevance_score"],
+        "source_count": confidence_data["source_count"],
         "standalone_question": standalone_question,
     }
 
@@ -129,13 +252,13 @@ async def stream_rag_chain(
 ) -> AsyncGenerator[str, None]:
     """
     Streaming RAG chain. Yields:
-    - First: a __SOURCES__ prefixed JSON string
+    - First: a __SOURCES__ prefixed JSON string with confidence metrics
     - Then: answer tokens one by one
+    - Finally: __SUGGESTIONS__ prefixed JSON array
     """
     import json
 
     llm = get_llm()
-    retriever = get_retriever(doc_ids)
     lc_history = build_chat_history(chat_history)
 
     # Rephrase
@@ -148,19 +271,36 @@ async def stream_rag_chain(
     else:
         standalone_question = question
 
-    # Retrieve
-    docs = await retriever.ainvoke(standalone_question)
+    # Retrieve with scores
+    docs_with_scores = get_docs_with_scores(standalone_question, doc_ids)
+    docs = [doc for doc, score in docs_with_scores]
+    scores = [score for doc, score in docs_with_scores]
     context = format_docs(docs)
     sources = extract_sources(docs)
 
-    # Yield sources first (frontend picks this up as a special event)
-    yield f"__SOURCES__{json.dumps(sources)}\n"
+    # Calculate confidence metrics
+    confidence_data = calculate_confidence(scores)
+
+    # Yield sources with confidence metrics
+    sources_payload = {
+        "sources": sources,
+        "confidence": confidence_data["confidence"],
+        "relevance_score": confidence_data["relevance_score"],
+        "source_count": confidence_data["source_count"],
+    }
+    yield f"__SOURCES__{json.dumps(sources_payload)}\n"
 
     # Stream answer tokens
     qa_chain = QA_PROMPT | llm | StrOutputParser()
+    full_answer = ""
     async for token in qa_chain.astream({
         "question": standalone_question,
         "chat_history": lc_history,
         "context": context,
     }):
+        full_answer += token
         yield token
+
+    # Generate and yield follow-up suggestions AFTER streaming completes
+    suggestions = await generate_suggestions(question, full_answer)
+    yield f"__SUGGESTIONS__{json.dumps(suggestions)}\n"

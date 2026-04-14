@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Bot, User } from 'lucide-react'
 import SourceCard from './SourceCard'
+import SuggestionsRow from './SuggestionsRow'
+import ConfidenceIndicator from './ConfidenceIndicator'
 import clsx from 'clsx'
 
 // Loading dots animation
@@ -20,7 +22,7 @@ function ThinkingDots() {
   )
 }
 
-export default function ChatMessage({ message }) {
+export default function ChatMessage({ message, onSuggestionClick, onViewPDF }) {
   const isUser = message.role === 'user'
   const isThinking = message.status === 'thinking'
   const isStreaming = message.status === 'streaming'
@@ -56,7 +58,28 @@ export default function ChatMessage({ message }) {
         {/* Sources */}
         {!isUser && message.sources?.length > 0 && (
           <div className="w-full">
-            <SourceCard sources={message.sources} />
+            <SourceCard sources={message.sources} onViewPDF={onViewPDF} />
+          </div>
+        )}
+
+        {/* Confidence Indicator */}
+        {!isUser && message.status === 'done' && message.confidence && (
+          <div className="w-full">
+            <ConfidenceIndicator
+              confidence={message.confidence}
+              relevance_score={message.relevance_score}
+              source_count={message.source_count}
+            />
+          </div>
+        )}
+
+        {/* Suggestions */}
+        {!isUser && message.status === 'done' && message.suggestions?.length > 0 && onSuggestionClick && (
+          <div className="w-full">
+            <SuggestionsRow 
+              suggestions={message.suggestions}
+              onSuggestionClick={onSuggestionClick}
+            />
           </div>
         )}
 

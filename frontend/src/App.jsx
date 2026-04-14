@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Moon, Sun, Trash2, MessageSquare, ChevronLeft, ChevronRight, Bot } from 'lucide-react'
+import { Moon, Sun, Trash2, MessageSquare, ChevronLeft, ChevronRight, Bot, Download } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
 
 import { useDarkMode } from './hooks/useDarkMode'
-import { listDocuments, streamChat } from './utils/api'
+import { listDocuments, streamChat, listSessions, createSession, getSession, deleteSession, renameSession, getDocumentSummary, exportChatAsPDF } from './utils/api'
 
 import UploadZone from './components/UploadZone'
 import DocumentList from './components/DocumentList'
+import SessionList from './components/SessionList'
+import DocumentSummaryCard from './components/DocumentSummaryCard'
 import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
+import PDFViewer from './components/PDFViewer'
 
 const SUGGESTIONS = [
-  'Summarize this document',
-  'What are the key points?',
-  'List the main conclusions',
-  'What is this document about?',
+  'Generate comprehensive summary',
+  'Extract key findings',
+  'Identify main topics',
+  'Analyze document structure',
 ]
 
 export default function App() {
@@ -26,15 +29,58 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState([])
   const [docsLoading, setDocsLoading] = useState(true)
 
+  const [sessions, setSessions] = useState([])
+  const [currentSessionId, setCurrentSessionId] = useState(null)
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+
   const [messages, setMessages] = useState([])
   const [chatting, setChatting] = useState(false)
   const messagesEndRef = useRef(null)
 
-  useEffect(() => { loadDocuments() }, [])
+  const [documentSummary, setDocumentSummary] = useState(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [pdfDoc, setPdfDoc] = useState(null)
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    loadDocuments()
+    loadSessions()
+  }, [])
+
+  useEffect(() => {
+    const scrollToBottom = () => {
+      const timeout = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+      }, 50)
+      return () => clearTimeout(timeout)
+    }
+    
+    scrollToBottom()
   }, [messages])
+
+  // Fetch summary when exactly one document is selected
+  useEffect(() => {
+    async function fetchSummary() {
+      if (selectedIds.length !== 1) {
+        setDocumentSummary(null)
+        return
+      }
+
+      setSummaryLoading(true)
+      try {
+        const data = await getDocumentSummary(selectedIds[0])
+        setDocumentSummary(data)
+      } catch (e) {
+        console.warn('Could not fetch summary:', e)
+        setDocumentSummary(null)
+      } finally {
+        setSummaryLoading(false)
+      }
+    }
+
+    fetchSummary()
+  }, [selectedIds])
 
   async function loadDocuments() {
     setDocsLoading(true)
@@ -46,6 +92,71 @@ export default function App() {
       toast.error('Could not reach backend. Is it running?')
     } finally {
       setDocsLoading(false)
+    }
+  }
+
+  async function loadSessions() {
+    setSessionsLoading(true)
+    try {
+      const data = await listSessions()
+      setSessions(data || [])
+    } catch (e) {
+      console.warn('Could not load sessions:', e)
+    } finally {
+      setSessionsLoading(false)
+    }
+  }
+
+  async function handleNewSession() {
+    try {
+      const session = await createSession(selectedIds)
+      setCurrentSessionId(session.id)
+      setMessages([])
+      await loadSessions()
+    } catch (e) {
+      toast.error(`Failed to create session: ${e.message}`)
+    }
+  }
+
+  async function handleSelectSession(sessionId) {
+    try {
+      const session = await getSession(sessionId)
+      setCurrentSessionId(sessionId)
+      
+      // Convert stored messages to chat format
+      const chatMessages = session.messages.map((msg, i) => ({
+        id: i,
+        role: msg.role,
+        content: msg.content,
+        sources: msg.sources || [],
+        status: 'done',
+        timestamp: msg.timestamp,
+      }))
+      setMessages(chatMessages)
+    } catch (e) {
+      toast.error(`Failed to load session: ${e.message}`)
+    }
+  }
+
+  async function handleDeleteSession(sessionId) {
+    try {
+      await deleteSession(sessionId)
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null)
+        setMessages([])
+      }
+      await loadSessions()
+    } catch (e) {
+      throw e
+    }
+  }
+
+  async function handleRenameSession(sessionId, newTitle) {
+    try {
+      await renameSession(sessionId, newTitle)
+      await loadSessions()
+    } catch (e) {
+      throw e
     }
   }
 
@@ -79,8 +190,45 @@ export default function App() {
       .map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
   }
 
+  async function handleExportChat() {
+    if (!currentSessionId) {
+      toast.error('No active session to export')
+      return
+    }
+
+    try {
+      toast.loading('Generating PDF...', { id: 'pdf-export' })
+      await exportChatAsPDF(currentSessionId)
+      toast.success('Chat exported successfully!', { id: 'pdf-export' })
+    } catch (err) {
+      toast.error(`Export failed: ${err.message}`, { id: 'pdf-export' })
+    }
+  }
+
+  function handleOpenPDF(doc) {
+    setPdfDoc({
+      filename: doc.filename,
+      docPath: `http://localhost:8000/api/documents/${doc.id}/pdf`
+    })
+    setPdfOpen(true)
+  }
+
   const handleSend = useCallback(async (question) => {
     if (chatting) return
+
+    // Create a session if this is the first message
+    let sessionId = currentSessionId
+    if (!sessionId) {
+      try {
+        const session = await createSession(selectedIds)
+        sessionId = session.id
+        setCurrentSessionId(sessionId)
+        await loadSessions()
+      } catch (e) {
+        toast.error(`Failed to create session: ${e.message}`)
+        return
+      }
+    }
 
     const userMsg = {
       id: Date.now(),
@@ -96,6 +244,10 @@ export default function App() {
       role: 'assistant',
       content: '',
       sources: [],
+      suggestions: [],
+      confidence: null,
+      relevance_score: 0,
+      source_count: 0,
       status: 'thinking',
       timestamp: new Date().toISOString(),
     }
@@ -111,11 +263,19 @@ export default function App() {
         question,
         chatHistory: history,
         docIds: selectedIds,
+        sessionId,
       })) {
         if (chunk.type === 'sources') {
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId
-              ? { ...m, sources: chunk.sources, status: 'streaming' }
+              ? { 
+                  ...m, 
+                  sources: chunk.sources,
+                  confidence: chunk.confidence || null,
+                  relevance_score: chunk.relevance_score || 0,
+                  source_count: chunk.source_count || 0,
+                  status: 'streaming' 
+                }
               : m
           ))
         } else if (chunk.type === 'token') {
@@ -126,12 +286,21 @@ export default function App() {
               ? { ...m, content: captured, status: 'streaming' }
               : m
           ))
+        } else if (chunk.type === 'suggestions') {
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId
+              ? { ...m, suggestions: chunk.suggestions }
+              : m
+          ))
         }
       }
 
       setMessages(prev => prev.map(m =>
         m.id === aiMsgId ? { ...m, status: 'done' } : m
       ))
+      
+      // Refresh sessions to update message count
+      await loadSessions()
     } catch (err) {
       setMessages(prev => prev.map(m =>
         m.id === aiMsgId
@@ -142,7 +311,7 @@ export default function App() {
     } finally {
       setChatting(false)
     }
-  }, [chatting, selectedIds, messages])
+  }, [chatting, selectedIds, messages, currentSessionId])
 
   const hasDocuments = documents.length > 0
   const hasSelected = selectedIds.length > 0
@@ -183,33 +352,61 @@ export default function App() {
             <UploadZone onUploadSuccess={handleDocumentUploaded} />
           </div>
 
-          {/* Documents */}
-          <div className="flex-1 overflow-y-auto p-3">
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Your Documents
-              </p>
-              {documents.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)] font-mono text-[10px]">
-                  {selectedIds.length}/{documents.length}
-                </span>
+          {/* Documents & Sessions */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-4">
+            {/* Sessions */}
+            <div>
+              {sessionsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-10 rounded-lg shimmer" />
+                  ))}
+                </div>
+              ) : (
+                <SessionList
+                  sessions={sessions}
+                  onSessionSelect={handleSelectSession}
+                  onSessionCreate={handleNewSession}
+                  onSessionDelete={handleDeleteSession}
+                  onSessionRename={handleRenameSession}
+                  currentSessionId={currentSessionId}
+                />
               )}
             </div>
 
-            {docsLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-14 rounded-lg shimmer" />
-                ))}
-              </div>
-            ) : (
-              <DocumentList
-                documents={documents}
-                selectedIds={selectedIds}
-                onToggle={toggleDocument}
-                onDeleted={handleDocumentDeleted}
-              />
+            {/* Divider */}
+            {sessions.length > 0 && documents.length > 0 && (
+              <div className="h-px bg-[var(--border)] my-3" />
             )}
+
+            {/* Documents */}
+            <div>
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Your Documents
+                </p>
+                {documents.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)] font-mono text-[10px]">
+                    {selectedIds.length}/{documents.length}
+                  </span>
+                )}
+              </div>
+
+              {docsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-14 rounded-lg shimmer" />
+                  ))}
+                </div>
+              ) : (
+                <DocumentList
+                  documents={documents}
+                  selectedIds={selectedIds}
+                  onToggle={toggleDocument}
+                  onDeleted={handleDocumentDeleted}
+                />
+              )}
+            </div>
           </div>
 
           {/* Warning */}
@@ -245,13 +442,22 @@ export default function App() {
 
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
-              <button
-                onClick={clearChat}
-                className="p-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-red-500 transition-colors"
-                title="Clear chat"
-              >
-                <Trash2 size={16} />
-              </button>
+              <>
+                <button
+                  onClick={handleExportChat}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                  title="Export chat as PDF"
+                >
+                  <Download size={16} />
+                </button>
+                <button
+                  onClick={clearChat}
+                  className="p-1.5 rounded-lg hover:bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-red-500 transition-colors"
+                  title="Clear chat"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </>
             )}
             <button
               onClick={() => setDark(!dark)}
@@ -264,7 +470,16 @@ export default function App() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6" style={{ overflowAnchor: 'auto' }}>
+          {/* Document Summary - Show when single doc selected */}
+          {selectedIds.length === 1 && documentSummary && (
+            <DocumentSummaryCard
+              summary={documentSummary.summary}
+              filename={documentSummary.filename}
+              isGenerating={summaryLoading}
+            />
+          )}
+
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center select-none">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-200 dark:shadow-blue-900/30">
@@ -292,7 +507,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            messages.map(msg => <ChatMessage key={msg.id} message={msg} />)
+            messages.map(msg => <ChatMessage key={msg.id} message={msg} onSuggestionClick={handleSend} onViewPDF={handleOpenPDF} />)
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -309,6 +524,17 @@ export default function App() {
           </p>
         </div>
       </main>
+
+      {/* PDF Viewer Modal */}
+      {pdfOpen && pdfDoc && (
+        <PDFViewer
+          filename={pdfDoc.filename}
+          docPath={pdfDoc.docPath}
+          onClose={() => setPdfOpen(false)}
+        />
+      )}
+
+      <Toaster position="top-center" />
     </div>
   )
 }

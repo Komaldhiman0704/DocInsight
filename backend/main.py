@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from routers import chat, upload, documents
+from routers import chat, upload, documents, sessions
 from services.vector_store import shutdown_vectorstore
 
 app = FastAPI(
@@ -33,6 +33,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(chat.router,   prefix="/api", tags=["Chat"])
 app.include_router(documents.router, prefix="/api", tags=["Documents"])
+app.include_router(sessions.router, prefix="/api", tags=["Sessions"])
 
 @app.on_event("shutdown")
 async def shutdown_event():

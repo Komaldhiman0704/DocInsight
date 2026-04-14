@@ -2,7 +2,7 @@
 Upload Router
 POST /api/upload  - Upload and ingest a PDF
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import uuid
 import os
@@ -11,7 +11,8 @@ import logging
 
 from config import get_settings
 from services.vector_store import ingest_pdf
-from services.document_store import add_document
+from services.document_store import add_document, update_document_summary
+from services.summarizer import generate_summary
 
 router = APIRouter()
 settings = get_settings()
@@ -20,8 +21,20 @@ logger = logging.getLogger(__name__)
 ALLOWED_TYPES = {"application/pdf", "application/x-pdf"}
 MAX_BYTES = settings.MAX_FILE_SIZE_MB * 1024 * 1024
 
+
+async def generate_summary_and_save(doc_id: str, file_path: str, filename: str):
+    """Background task to generate and save document summary"""
+    try:
+        summary = await generate_summary(file_path, filename)
+        if summary:
+            update_document_summary(doc_id, summary)
+            logger.info(f"Summary saved for document {doc_id}")
+    except Exception as e:
+        logger.error(f"Background summary generation failed for {doc_id}: {e}", exc_info=True)
+
+
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     """
     Upload a PDF file, process it into chunks, and store embeddings.
     Returns document metadata.
@@ -72,6 +85,10 @@ async def upload_pdf(file: UploadFile = File(...)):
             chunk_count=chunk_count,
             file_size=len(content),
         )
+        
+        # Generate summary in background (non-blocking)
+        if background_tasks:
+            background_tasks.add_task(generate_summary_and_save, doc_id, file_path, file.filename)
         
         logger.info(f"Successfully processed {file.filename} into {chunk_count} chunks")
 

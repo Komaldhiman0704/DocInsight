@@ -46,9 +46,16 @@ export async function deleteDocument(docId) {
   return res.json()
 }
 
+// ── Get Document Summary ───────────────────────────────────────────────────────
+export async function getDocumentSummary(docId) {
+  const res = await fetch(`${BASE}/documents/${docId}/summary`)
+  if (!res.ok) throw new Error('Failed to fetch summary')
+  return res.json()
+}
+
 // ── Stream Chat (SSE) ─────────────────────────────────────────────────────────
 // Yields { type: 'sources', sources: [...] } then { type: 'token', token: '...' }
-export async function* streamChat({ question, chatHistory, docIds }) {
+export async function* streamChat({ question, chatHistory, docIds, sessionId }) {
   const res = await fetch(`${BASE}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -56,6 +63,7 @@ export async function* streamChat({ question, chatHistory, docIds }) {
       question,
       chat_history: chatHistory,
       doc_ids: docIds?.length ? docIds : null,
+      session_id: sessionId || null,
     }),
   })
 
@@ -93,8 +101,27 @@ export async function* streamChat({ question, chatHistory, docIds }) {
 
         if (eventType === 'sources') {
           try {
-            const sources = JSON.parse(rawData)
-            yield { type: 'sources', sources }
+            const sourcesData = JSON.parse(rawData)
+            // Handle both old format (array) and new format (object)
+            if (Array.isArray(sourcesData)) {
+              yield { type: 'sources', sources: sourcesData }
+            } else {
+              yield { 
+                type: 'sources', 
+                sources: sourcesData.sources || [],
+                confidence: sourcesData.confidence,
+                relevance_score: sourcesData.relevance_score,
+                source_count: sourcesData.source_count,
+              }
+            }
+          } catch {}
+          i += 2
+          continue
+        }
+        if (eventType === 'suggestions') {
+          try {
+            const suggestions = JSON.parse(rawData)
+            yield { type: 'suggestions', suggestions }
           } catch {}
           i += 2
           continue
@@ -147,4 +174,72 @@ export async function sendChat({ question, chatHistory, docIds }) {
     throw new Error(err.detail || 'Chat failed')
   }
   return res.json()
+}
+
+// ── Chat Sessions ─────────────────────────────────────────────────────────────
+export async function listSessions() {
+  const res = await fetch(`${BASE}/sessions`)
+  if (!res.ok) throw new Error('Failed to fetch sessions')
+  return res.json()
+}
+
+export async function createSession(docIds = []) {
+  const res = await fetch(`${BASE}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ doc_ids: docIds }),
+  })
+  if (!res.ok) throw new Error('Failed to create session')
+  return res.json()
+}
+
+export async function getSession(sessionId) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}`)
+  if (!res.ok) throw new Error('Failed to fetch session')
+  return res.json()
+}
+
+export async function deleteSession(sessionId) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete session')
+  return res.json()
+}
+
+export async function renameSession(sessionId, title) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  })
+  if (!res.ok) throw new Error('Failed to rename session')
+  return res.json()
+}
+
+// ── Export Chat as PDF ─────────────────────────────────────────────────────────
+export async function exportChatAsPDF(sessionId) {
+  const res = await fetch(`${BASE}/chat/export?session_id=${encodeURIComponent(sessionId)}`, {
+    method: 'POST',
+  })
+  
+  if (!res.ok) {
+    throw new Error('Failed to export chat')
+  }
+  
+  // Get filename from Content-Disposition header
+  const contentDisposition = res.headers.get('content-disposition')
+  let filename = `chat_export_${sessionId}.pdf`
+  if (contentDisposition && contentDisposition.includes('filename=')) {
+    filename = contentDisposition.split('filename=')[1].replace(/"/g, '')
+  }
+  
+  // Get PDF blob and trigger download
+  const blob = await res.blob()
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
 }

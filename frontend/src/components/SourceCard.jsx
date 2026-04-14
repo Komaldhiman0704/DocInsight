@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { FileText, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { FileText, BookOpen, ChevronDown, ChevronUp, Eye } from 'lucide-react'
 import clsx from 'clsx'
 
-export default function SourceCard({ sources }) {
+export default function SourceCard({ sources, onViewPDF }) {
   const [expanded, setExpanded] = useState(false)
   if (!sources || sources.length === 0) return null
 
@@ -31,6 +31,15 @@ export default function SourceCard({ sources }) {
                 <span className="ml-auto shrink-0 px-1.5 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)] font-mono text-[10px]">
                   p.{s.page}
                 </span>
+                {onViewPDF && (
+                  <button
+                    onClick={() => onViewPDF({ id: s.doc_id, filename: s.filename })}
+                    className="ml-1 p-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                    title="View PDF"
+                  >
+                    <Eye size={12} />
+                  </button>
+                )}
               </div>
               <p className={clsx(
                 'text-[var(--text-secondary)] leading-relaxed line-clamp-3',

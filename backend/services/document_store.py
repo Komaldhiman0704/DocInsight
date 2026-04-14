@@ -28,6 +28,7 @@ def add_document(doc_id: str, filename: str, file_path: str, chunk_count: int, f
         "file_path": file_path,
         "chunk_count": chunk_count,
         "file_size": file_size,
+        "summary": None,  # Will be filled in by async summarizer
         "uploaded_at": datetime.now().isoformat(),
     })
     _save(data)
@@ -40,6 +41,16 @@ def get_document(doc_id: str) -> Optional[dict]:
         if doc["id"] == doc_id:
             return doc
     return None
+
+def update_document_summary(doc_id: str, summary: str) -> bool:
+    """Update the summary for a document"""
+    data = _load()
+    for doc in data["documents"]:
+        if doc["id"] == doc_id:
+            doc["summary"] = summary
+            _save(data)
+            return True
+    return False
 
 def delete_document(doc_id: str) -> bool:
     data = _load()

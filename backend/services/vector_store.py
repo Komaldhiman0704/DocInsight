@@ -120,6 +120,32 @@ def get_retriever(doc_ids: list[str] | None = None):
         search_kwargs=search_kwargs,
     )
 
+def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[tuple]:
+    """
+    Get documents with similarity scores for a query.
+    Returns: list of (doc, score) tuples where score is 0.0-1.0
+    """
+    vectorstore = get_vectorstore()
+    
+    # Get all results first
+    results = vectorstore.similarity_search_with_score(
+        query=query,
+        k=settings.TOP_K_RESULTS * 2,  # Get more to account for filtering
+    )
+    
+    # Filter by doc_ids if specified
+    if doc_ids:
+        results = [
+            (doc, score) for doc, score in results 
+            if doc.metadata.get("doc_id") in doc_ids
+        ]
+        # Trim to TOP_K_RESULTS after filtering
+        results = results[:settings.TOP_K_RESULTS]
+    else:
+        results = results[:settings.TOP_K_RESULTS]
+    
+    return results
+
 def get_document_count(doc_id: str) -> int:
     """Return number of chunks stored for a document"""
     client = get_chroma_client()
