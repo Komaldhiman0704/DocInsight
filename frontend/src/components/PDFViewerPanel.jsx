@@ -41,7 +41,8 @@ const PDFViewerPanel = ({
   filename, 
   docPath, 
   targetPage = 1, 
-  onClose 
+  onClose,
+  docId = null // New: Explicit document ID for tracking document changes
 }) => {
   // State: Document and rendering
   const [pdfDoc, setPdfDoc] = useState(null)
@@ -58,15 +59,71 @@ const PDFViewerPanel = ({
   const [pdfLoaded, setPdfLoaded] = useState(false)
   const [pendingPage, setPendingPage] = useState(null)
   
+  // ✅ CRITICAL FIX: Track current document to detect document changes
+  // - currentDoc: { docId, docPath, filename } for the currently loaded PDF
+  // - When currentDoc changes, reset viewer BEFORE loading new PDF
+  // - Prevents old PDF rendering interfering with new PDF rendering
+  const [currentDoc, setCurrentDoc] = useState(null)
+  
   // Refs: Canvas, PDF document, and page cache
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const pageRenderCacheRef = useRef(new Map()) // Cache: pageNum -> canvas ImageData
   const preloadTimeoutRef = useRef(null) // Timeout for background preloading
   const jumpTimeoutRef = useRef(null) // Timeout for delayed page jump (CRITICAL)
-  
-  // Track document ID to enable cache reuse
-  const docIdRef = useRef(docPath)
+
+  // ──────────────────────────────────────────────────────────────────
+  // ✅ CRITICAL NEW EFFECT: Detect Document Change
+  // ──────────────────────────────────────────────────────────────────
+  // When document changes (user clicks citation from different PDF):
+  // 1. Detect the change by comparing docPath or docId
+  // 2. Reset ALL viewer state BEFORE loading new PDF
+  // 3. This prevents old PDF rendering from interfering with new PDF
+  // 4. Prevents page jump from applying to wrong PDF instance
+  // ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Check if document changed
+    const docChanged = !currentDoc || 
+                       currentDoc.docPath !== docPath || 
+                       (docId && currentDoc.docId !== docId)
+    
+    if (docChanged) {
+      console.log(`[Document Change Detected] Switching from ${currentDoc?.filename} to ${filename}`)
+      
+      // ✅ STEP 1: Clear previous PDF instance completely
+      // This ensures old rendering stops immediately
+      setPdfDoc(null)
+      
+      // ✅ STEP 2: Reset all page/rendering state
+      // Important: Don't jump to targetPage yet, just reset to defaults
+      setCurrentPage(1)
+      setTotalPages(0)
+      setPdfLoaded(false)
+      setPendingPage(null)
+      
+      // ✅ STEP 3: Clear any pending timeouts from old document
+      if (jumpTimeoutRef.current) {
+        clearTimeout(jumpTimeoutRef.current)
+        jumpTimeoutRef.current = null
+      }
+      if (preloadTimeoutRef.current) {
+        clearTimeout(preloadTimeoutRef.current)
+        preloadTimeoutRef.current = null
+      }
+      
+      // ✅ STEP 4: Clear page render cache
+      pageRenderCacheRef.current.clear()
+      
+      // ✅ STEP 5: Update currentDoc to track new document
+      setCurrentDoc({
+        docPath,
+        docId: docId || docPath, // Use docId if provided, otherwise use docPath
+        filename
+      })
+      
+      console.log(`[Document Change] ✓ Viewer reset, ready for new PDF: ${filename}`)
+    }
+  }, [docPath, docId, filename, currentDoc])
 
   // ──────────────────────────────────────────────────────────────────
   // ✅ OPTIMIZATION 1: Load PDF with caching strategy
@@ -77,16 +134,35 @@ const PDFViewerPanel = ({
   // - Store targetPage in pendingPage state (jump happens AFTER PDF ready)
   // ──────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // ✅ CRITICAL GUARD: Only load if currentDoc matches the requested document
+    // This prevents loading wrong PDF if component props change during loading
+    if (!currentDoc || currentDoc.docPath !== docPath) {
+      console.log(`[PDF Load] Waiting for document change detection to complete...`)
+      return
+    }
+
     const loadPDF = async () => {
       try {
         setLoading(true)
         setError(null)
-        setPdfLoaded(false) // Reset PDF ready state
-        setPendingPage(null) // Clear any pending page jump
         
-        // Check if PDF already cached
+        // ✅ CRITICAL DOUBLE-CHECK: Verify currentDoc still matches
+        // (in case props changed while we're in async operation)
+        if (currentDoc.docPath !== docPath) {
+          console.log(`[PDF Load] Document changed during load, aborting`)
+          return
+        }
+
+        // ✅ Check if PDF already cached
         if (pdfCache.has(docPath)) {
           const cachedPdf = pdfCache.get(docPath)
+          
+          // ✅ Verify document hasn't changed in the interim
+          if (currentDoc.docPath !== docPath) {
+            console.log(`[PDF Cache] Document changed, skipping cache`)
+            return
+          }
+          
           setPdfDoc(cachedPdf)
           setTotalPages(cachedPdf.numPages)
           
@@ -114,8 +190,20 @@ const PDFViewerPanel = ({
         
         const arrayBuffer = await response.arrayBuffer()
         
+        // ✅ CRITICAL: Verify document hasn't changed while fetching
+        if (currentDoc.docPath !== docPath) {
+          console.log(`[PDF Load] Document changed during fetch, discarding result`)
+          return
+        }
+        
         // Load document with PDF.js
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+        
+        // ✅ CRITICAL: One more check before setting state
+        if (currentDoc.docPath !== docPath) {
+          console.log(`[PDF Load] Document changed during parse, discarding result`)
+          return
+        }
         
         // ✅ Store in global cache for future opens
         pdfCache.set(docPath, pdf)
@@ -145,7 +233,7 @@ const PDFViewerPanel = ({
     }
 
     loadPDF()
-  }, [docPath, targetPage, filename])
+  }, [currentDoc, docPath, targetPage, filename])
 
   // ──────────────────────────────────────────────────────────────────
   // ✅ CRITICAL FIX: Handle pending page jump AFTER PDF is fully loaded
@@ -224,11 +312,18 @@ const PDFViewerPanel = ({
       try {
         setRendering(true)
         
+        // ✅ CRITICAL GUARD: Verify we're rendering the correct document
+        // Don't render if document has changed
+        if (currentDoc.docPath !== docPath) {
+          console.log(`[Render] Document changed, skipping render`)
+          return
+        }
+        
         // Validate page number
         const pageNum = Math.max(1, Math.min(currentPage, totalPages))
         setCurrentPage(pageNum)
         
-        // Render current page
+        // ✅ Render current page
         const success = await renderPageToCanvas(pageNum, canvasRef.current, scale)
         
         if (success) {
@@ -241,6 +336,11 @@ const PDFViewerPanel = ({
           }
           
           preloadTimeoutRef.current = setTimeout(() => {
+            // ✅ Another guard: verify document hasn't changed during preload
+            if (currentDoc.docPath !== docPath) {
+              return
+            }
+            
             // Preload previous page
             if (pageNum > 1) {
               pdfDoc.getPage(pageNum - 1).then(page => {
@@ -292,7 +392,7 @@ const PDFViewerPanel = ({
         clearTimeout(preloadTimeoutRef.current)
       }
     }
-  }, [pdfDoc, currentPage, scale, totalPages, renderPageToCanvas])
+  }, [pdfDoc, currentPage, scale, totalPages, renderPageToCanvas, currentDoc, docPath])
 
   // ──────────────────────────────────────────────────────────────────
   // ✅ OPTIMIZATION 4: Memoized navigation handlers

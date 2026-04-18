@@ -577,6 +577,7 @@ export default function App() {
         <PDFViewerPanel
           filename={pdfPanelDoc.filename}
           docPath={pdfPanelDoc.docPath}
+          docId={pdfPanelDoc.id}
           targetPage={pdfTargetPage}
           onClose={() => setPdfPanelOpen(false)}
         />
