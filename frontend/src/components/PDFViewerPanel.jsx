@@ -3,8 +3,8 @@ import { X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Loader, AlertCircle, File }
 import * as pdfjsLib from 'pdfjs-dist'
 import clsx from 'clsx'
 
-// Set up PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+// Set up PDF.js worker with proper HTTPS protocol
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 /**
  * PDFViewerPanel - Professional PDF Viewer with Page Jump (Citation-based Navigation)
