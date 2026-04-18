@@ -1,93 +1,130 @@
-# 📄 DocInsight — Full Stack (Free)
+# 📄 DocInsight — Production-Ready PDF Chatbot
 
-A production-ready RAG chatbot that lets you chat with your documents using AI.  
-**100% free stack** — no paid APIs required (uses Groq's free tier + local ChromaDB + HuggingFace embeddings).
+A **professional, production-grade RAG (Retrieval-Augmented Generation) chatbot** that enables you to have intelligent conversations with your PDF documents. Built with modern web technologies, real-time streaming, and a polished user interface.
+
+**100% Free Stack** — Groq free tier LLM + Local ChromaDB vector database + HuggingFace embeddings. Deploy locally or to cloud with zero licensing costs.
 
 ---
 
 ## ✨ Features
 
-- 📤 **Multi-Document Upload** — drag & drop PDFs, DOCX, and TXT files
-- 🤖 **AI Chat** — streaming answers powered by Llama3 via Groq (free)
-- 📚 **Source Citations** — every answer shows which page it came from
-- 🗂️ **Document Selection** — choose which PDFs to query
-- 💬 **Chat History** — context-aware follow-up questions
-- 🌙 **Dark Mode** — toggle dark/light theme
-- 🎤 **Voice Input** — speak your questions (Chrome/Edge)
-- 🆓 **Fully Free** — Groq API + ChromaDB + HuggingFace = $0/month
+### Core Capabilities
+- 📤 **Intelligent Document Upload** — Drag-and-drop interface for PDFs, DOCX, and TXT files with validation
+- 🤖 **Streaming AI Chat** — Real-time token-by-token responses powered by Llama3 via Groq (free tier)
+- 📚 **Precise Source Citations** — Every answer includes page numbers and context from source documents
+- 🗂️ **Smart Document Selection** — Query specific documents or search across your entire collection
+- 💬 **Context-Aware Chat History** — Follow-up questions automatically include conversation context
+- ✨ **Professional UI/UX** — Custom-designed logo, dark/light mode, polished animations, and responsive design
+- 🎤 **Voice Input Support** — Speak your questions (Chrome/Edge browsers)
+- 📊 **Confidence Indicators** — AI confidence scores help you evaluate answer reliability
+- 🆓 **100% Free Deployment** — No API fees, database costs, or licensing required
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
 ```
-User Browser
-     │
-     ▼
-React Frontend (Vite, port 5173)
-     │  HTTP/SSE
-     ▼
-FastAPI Backend (port 8000)
-     ├── LangChain RAG Chain
-     │        ├── HuggingFace Embeddings (local CPU)
-     │        ├── ChromaDB (local vector DB)
-     │        └── Groq LLM (free API → Llama3)
-     └── File Storage (./uploads/)
+┌─────────────────────┐
+│   User Browser      │
+│  (React + Vite)     │
+└──────────┬──────────┘
+           │ HTTP/SSE (Port 5173)
+           ▼
+┌──────────────────────────────────┐
+│   FastAPI Backend (Port 8000)    │
+│  ┌────────────────────────────┐  │
+│  │   LangChain RAG Pipeline   │  │
+│  │  ┌──────────────────────┐  │  │
+│  │  │ Document Processing  │  │  │
+│  │  │ & Chunking (1000ch)  │  │  │
+│  │  └──────────────────────┘  │  │
+│  │  ┌──────────────────────┐  │  │
+│  │  │ Embedding Generation │  │  │
+│  │  │ (HuggingFace local)  │  │  │
+│  │  └──────────────────────┘  │  │
+│  │  ┌──────────────────────┐  │  │
+│  │  │ Vector Retrieval     │  │  │
+│  │  │ (ChromaDB)           │  │  │
+│  │  └──────────────────────┘  │  │
+│  │  ┌──────────────────────┐  │  │
+│  │  │ LLM Response Gen     │  │  │
+│  │  │ (Groq Free API)      │  │  │
+│  │  └──────────────────────┘  │  │
+│  └────────────────────────────┘  │
+│                                  │
+│  ┌────────────────────────────┐  │
+│  │  Persistent Storage        │  │
+│  │  • ChromaDB (vectors)      │  │
+│  │  • Session JSON (history)  │  │
+│  │  • Document uploads        │  │
+│  └────────────────────────────┘  │
+└──────────────────────────────────┘
 ```
 
-**RAG Flow:**
-1. Documents uploaded (PDF, DOCX, TXT) → split into 1000-char chunks
-2. Chunks embedded with `sentence-transformers/all-MiniLM-L6-v2` (runs locally)
-3. Embeddings stored in ChromaDB (local folder)
-4. User asks question → question intelligently rephrased with history → top 4 chunks retrieved
-5. LLM generates answer from chunks → streamed token by token to browser
-6. Confidence score and follow-up suggestions displayed
+### Data Flow
+1. **Upload** → Documents chunked (1000 chars) with overlap
+2. **Embed** → Chunks embedded locally with `sentence-transformers/all-MiniLM-L6-v2`
+3. **Store** → Embeddings persisted in ChromaDB (./chroma_db/)
+4. **Query** → Question re-ranked with conversation history, top-4 chunks retrieved
+5. **Generate** → LLM synthesizes answer with citations → streamed to frontend
+6. **Display** → Real-time UI updates with confidence scores and follow-up suggestions
 
 ---
 
-## 📋 Prerequisites
+## 📋 System Requirements
 
-| Tool | Version | Download |
-|------|---------|----------|
-| Python | 3.11+ | https://python.org |
-| Node.js | 18+ | https://nodejs.org |
-| Groq API key | Free | https://console.groq.com/keys |
+| Component | Requirement | Notes |
+|-----------|-------------|-------|
+| **Python** | 3.11+ | Backend runtime, virtual environment recommended |
+| **Node.js** | 18+ | Frontend build tooling (npm) |
+| **RAM** | 4GB min, 8GB+ rec | Embeddings model runs locally |
+| **Disk** | 2GB+ available | ChromaDB + uploads + models cache |
+| **OS** | Windows 10+, macOS, Linux | Tested on Windows 10/11 |
+| **Groq API Key** | Free account | Get from https://console.groq.com/keys |
 
 ---
 
-## 🚀 Windows Quick Start
+## 🚀 Quick Start (Windows)
 
-### Step 1 — Get Free Groq API Key
-1. Go to https://console.groq.com/keys
-2. Sign up (free, no credit card)
-3. Create a new API key → copy it
+### 1️⃣ Get Your Free Groq API Key
+```
+1. Visit: https://console.groq.com/keys
+2. Create account (free, no credit card required)
+3. Generate API key and copy to clipboard
+```
 
-### Step 2 — Install & Run
-
-```bat
-REM 1. Clone or download this project
+### 2️⃣ Clone & Setup Project
+```batch
+REM Clone repository
+git clone https://github.com/Komaldhiman0704/pdf-chatbot.git
 cd pdf-chatbot
 
-REM 2. Run setup (installs all dependencies)
-setup.bat
-
-REM 3. Add your Groq key to backend\.env
-REM    Open backend\.env and replace:
-REM    GROQ_API_KEY=your_groq_api_key_here
-REM    with your actual key
-
-REM 4. Start both servers
-start.bat
+REM Create .env file in backend folder with your Groq key
+REM backend\.env contents:
+REM   GROQ_API_KEY=your_actual_api_key_here
 ```
 
-### Step 3 — Open App
-Visit **http://localhost:5173** in your browser.
+### 3️⃣ Start the Application
+```batch
+REM One-command startup (installs dependencies automatically)
+start.bat
+
+REM This will:
+REM   • Check Python & Node.js installation
+REM   • Create Python virtual environment (if needed)
+REM   • Install all dependencies (pip + npm)
+REM   • Start backend (port 8000)
+REM   • Start frontend dev server (port 5173)
+```
+
+### 4️⃣ Access the Application
+Open your browser to: **http://localhost:5173**
 
 ---
 
-## 🖥️ Manual Setup (Step by Step)
+## 🖥️ Manual Setup (Step-by-Step)
 
-### Backend
+### Backend Setup
 
 ```bash
 cd backend
@@ -101,53 +138,78 @@ venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Edit .env - add your GROQ_API_KEY
-notepad .env
-
-# Start backend
-uvicorn main:app --reload --port 8000
+# Create and configure .env file
+# Add: GROQ_API_KEY=your_actual_api_key_here
 ```
 
-### Frontend
+Edit `backend/.env` with your Groq API key.
+
+### Frontend Setup
 
 ```bash
 cd frontend
 
-# Install Node dependencies
+# Install dependencies
 npm install
 
-# Start dev server
+# Start development server
 npm run dev
+```
+
+### Running Both Services Manually
+
+**Terminal 1 — Backend:**
+```bash
+cd backend
+venv\Scripts\activate
+uvicorn main:app --reload --port 8000
+```
+
+**Terminal 2 — Frontend:**
+```bash
+cd frontend
+npm run dev
+# Opens http://localhost:5173
 ```
 
 ---
 
-## 🔧 Configuration
+## ⚙️ Environment Configuration
 
-Edit `backend/.env`:
+### Backend `.env` File
+
+Create `backend/.env` with your settings:
 
 ```env
-# Required: Get free key at https://console.groq.com
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+# ==================== REQUIRED ====================
+# Get free API key from https://console.groq.com
+GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
 
-# LLM model (free options on Groq)
-GROQ_MODEL=llama3-8b-8192        # Fast, good quality
-# GROQ_MODEL=mixtral-8x7b-32768  # Better reasoning
-# GROQ_MODEL=llama3-70b-8192     # Best quality (slower)
+# ==================== OPTIONAL ====================
+# Model selection (default: llama3-8b-8192)
+# GROQ_MODEL=llama3-8b-8192        # Recommended: Fast + good quality
+# GROQ_MODEL=mixtral-8x7b-32768    # Better reasoning
+# GROQ_MODEL=llama3-70b-8192       # Best quality (slower)
+
+# Alternative: Run Ollama locally (no internet needed)
+# LLM_PROVIDER=ollama
+# OLLAMA_MODEL=llama3
 ```
 
-### Use Ollama Instead (Fully Offline)
+### Use Ollama for Fully Offline Operation
 
-If you want zero internet dependency:
+To run completely offline without internet:
 
 ```bash
-# Install Ollama from https://ollama.ai
-# Then pull a model:
+# 1. Install Ollama from https://ollama.ai
+# 2. Pull a model
 ollama pull llama3
 
-# Edit backend/.env:
+# 3. Update backend/.env
 LLM_PROVIDER=ollama
 OLLAMA_MODEL=llama3
+
+# 4. Ollama server runs on http://localhost:11434
 ```
 
 ---
@@ -156,90 +218,206 @@ OLLAMA_MODEL=llama3
 
 ```
 pdf-chatbot/
-├── backend/
-│   ├── main.py                  # FastAPI app entry point
-│   ├── config.py                # Settings from .env
-│   ├── requirements.txt         # Python dependencies
-│   ├── .env                     # Your API keys (never commit!)
-│   ├── routers/
-│   │   ├── upload.py            # POST /api/upload
-│   │   ├── chat.py              # POST /api/chat/stream
-│   │   └── documents.py         # GET/DELETE /api/documents
-│   └── services/
-│       ├── vector_store.py      # ChromaDB + HuggingFace embeddings
-│       ├── llm.py               # LLM provider switcher
-│       ├── rag_chain.py         # LangChain RAG pipeline
-│       └── document_store.py    # PDF metadata (JSON file)
 │
-├── frontend/
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   └── src/
-│       ├── App.jsx              # Main layout + state
-│       ├── main.jsx             # React entry point
-│       ├── components/
-│       │   ├── ChatMessage.jsx  # Message bubble
-│       │   ├── ChatInput.jsx    # Input bar + voice
-│       │   ├── UploadZone.jsx   # Drag & drop upload
-│       │   ├── DocumentList.jsx # Sidebar document list
-│       │   └── SourceCard.jsx   # PDF source citations
-│       ├── hooks/
-│       │   ├── useDarkMode.js   # Dark/light mode
-│       │   └── useVoiceInput.js # Web Speech API
-│       ├── utils/
-│       │   └── api.js           # All backend API calls
-│       └── styles/
-│           └── globals.css      # Tailwind + custom CSS
+├── 📂 backend/                     # FastAPI application
+│   ├── main.py                     # Application entry point
+│   ├── config.py                   # Settings & environment loading
+│   ├── requirements.txt            # Python dependencies
+│   ├── .env                        # API keys (ignored in git)
+│   │
+│   ├── 📂 routers/                 # API endpoints
+│   │   ├── chat.py                 # POST /api/chat/stream (streaming)
+│   │   ├── upload.py               # POST /api/upload (file handling)
+│   │   ├── documents.py            # GET/DELETE /api/documents
+│   │   └── sessions.py             # GET /api/sessions (history)
+│   │
+│   ├── 📂 services/                # Business logic
+│   │   ├── rag_chain.py            # LangChain RAG orchestration
+│   │   ├── vector_store.py         # ChromaDB + embeddings
+│   │   ├── llm.py                  # LLM provider abstraction
+│   │   ├── document_store.py       # Document persistence
+│   │   ├── chat_store.py           # Session & message storage
+│   │   ├── summarizer.py           # Document summarization
+│   │   └── pdf_exporter.py         # Export capabilities
+│   │
+│   ├── 📂 uploads/                 # User uploaded documents
+│   └── 📂 chroma_db/               # Vector embeddings (persistent)
 │
-├── uploads/                     # Uploaded PDFs stored here
-├── chroma_db/                   # Vector embeddings stored here
-├── setup.bat                    # One-click Windows setup
-└── start.bat                    # Launch both servers
+├── 📂 frontend/                    # React + Vite application
+│   ├── index.html                  # HTML entry point
+│   ├── package.json                # npm dependencies
+│   ├── vite.config.js              # Vite configuration + API proxy
+│   ├── tailwind.config.js          # Custom animations & utilities
+│   ├── postcss.config.js           # PostCSS setup
+│   │
+│   └── 📂 src/
+│       ├── main.jsx                # React initialization
+│       ├── App.jsx                 # Main layout & state management
+│       │
+│       ├── 📂 components/          # Reusable React components
+│       │   ├── Logo.jsx            # Custom brand logo
+│       │   ├── ChatMessage.jsx     # Message display with streaming
+│       │   ├── ChatInput.jsx       # Input field + voice support
+│       │   ├── UploadZone.jsx      # Drag-drop file upload
+│       │   ├── DocumentList.jsx    # Sidebar document navigator
+│       │   ├── DocumentSummaryCard.jsx  # Document preview
+│       │   ├── SourceCard.jsx      # Citation with page numbers
+│       │   ├── SessionList.jsx     # Chat history panel
+│       │   ├── ConfidenceIndicator.jsx  # Answer confidence
+│       │   ├── SuggestionsRow.jsx  # Follow-up question suggestions
+│       │   └── PDFViewer.jsx       # PDF preview (if available)
+│       │
+│       ├── 📂 hooks/               # Custom React hooks
+│       │   ├── useDarkMode.js      # Dark/light theme toggle
+│       │   └── useVoiceInput.js    # Web Speech API integration
+│       │
+│       ├── 📂 utils/               # Utility functions
+│       │   └── api.js              # API client & endpoints
+│       │
+│       └── 📂 styles/
+│           └── globals.css         # Tailwind + custom CSS variables
+│
+├── start.bat                       # Windows startup script (all-in-one)
+├── stop.bat                        # Service shutdown script
+└── README.md                       # This file
 ```
 
 ---
 
-## 🎓 How to Explain in Viva
+## 🎨 Technology Stack
 
-### "What does this project do?"
-> "It's an AI chatbot that reads PDF documents and answers questions about them. You upload any PDF — a textbook, research paper, or report — and the system breaks it into chunks, creates vector embeddings, and uses a large language model to answer questions with exact page references."
+### Backend
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Framework** | FastAPI | High-performance Python web framework with async support |
+| **LLM Orchestration** | LangChain | RAG pipeline, prompt management, and chain composition |
+| **Vector Storage** | ChromaDB | Local vector database for embeddings (no setup needed) |
+| **Embeddings** | Sentence Transformers | Text-to-vector conversion (runs locally, ~90MB download) |
+| **LLM Provider** | Groq API | Free inference tier with Llama3, Mixtral models |
+| **Document Processing** | PyPDF, python-docx | PDF and DOCX parsing |
+| **Streaming** | Server-Sent Events | Token-by-token response streaming to frontend |
 
-### "What is RAG?"
-> "RAG stands for Retrieval-Augmented Generation. Instead of the AI answering from memory, it first retrieves the most relevant passages from your documents, then generates an answer grounded in that content. This makes answers accurate and traceable."
-
-### "What technologies did you use?"
-> - **FastAPI** — Python web framework for the REST API
-> - **LangChain** — orchestrates the RAG pipeline
-> - **ChromaDB** — local vector database that stores embeddings
-> - **HuggingFace Sentence Transformers** — converts text to vectors (runs locally, free)
-> - **Groq + Llama3** — free LLM API for generating answers
-> - **React + Vite** — modern frontend
-> - **Server-Sent Events** — for streaming token-by-token responses
-
-### "Why did you choose ChromaDB over Pinecone/Supabase?"
-> "ChromaDB runs entirely locally — no cloud account, no cost, no data leaving the machine. For a student project and privacy-sensitive documents, this is the better choice."
-
-### "What improvements could you make?"
-> - Add user authentication
-> - Support more file types (Word, Excel)
-> - Add answer quality evaluation metrics
-> - Deploy to cloud (Render + Vercel — both have free tiers)
+### Frontend
+| Layer | Technology | Purpose |
+|--------|-----------|---------|
+| **Framework** | React 18 | Modern UI component library |
+| **Build Tool** | Vite | Next-generation fast module bundler |
+| **Styling** | Tailwind CSS 3 | Utility-first CSS framework |
+| **Components** | Lucide React | Consistent icon library |
+| **State** | React Hooks | useState, useEffect, useContext |
+| **API Client** | Fetch API | Browser native HTTP client |
+| **Voice** | Web Speech API | Browser speech-to-text recognition |
+| **Theme** | CSS Variables | Dark/light mode implementation |
 
 ---
 
-## 🐛 Troubleshooting
+## 📖 How It Works
 
-| Problem | Fix |
-|---------|-----|
-| `GROQ_API_KEY not set` | Edit `backend/.env`, add your Groq key |
-| `ModuleNotFoundError` | Run `pip install -r requirements.txt` in the `backend` folder with venv activated |
-| `npm: command not found` | Install Node.js from https://nodejs.org |
-| Port 8000 in use | Change `--port 8001` in start.bat and update `vite.config.js` proxy |
-| First upload is slow | HuggingFace model downloads ~90MB on first run, cached after that |
-| ChromaDB error on Windows | Run `pip install chromadb --upgrade` |
+### Document Upload Flow
+1. User drags PDF/DOCX/TXT file into upload zone
+2. Frontend sends to `POST /api/upload`
+3. Backend extracts text, splits into 1000-character chunks (with overlap)
+4. Each chunk embedded using HuggingFace sentence transformer
+5. Embeddings stored in ChromaDB with metadata (filename, page #)
+6. Document added to sidebar, ready for queries
+
+### Chat Flow
+1. User types question and presses Send (or uses voice input)
+2. Message added to session history
+3. Last 5 messages sent to backend for context
+4. Backend uses LangChain to:
+   - Rephrase question with conversation context
+   - Search ChromaDB for 4 most-similar chunks
+   - Combine chunks as context window
+   - Send to Groq LLM with system prompt
+5. LLM streams response token-by-token via SSE
+6. Frontend displays tokens in real-time as they arrive
+7. Answer includes confidence score and source citations
+8. Follow-up suggestions generated and displayed
+
+---
+
+## 🎓 Frequently Asked Questions
+
+### Q: Why is the first upload slow?
+**A:** The HuggingFace embedding model (~90MB) downloads on first use. This is cached locally, so subsequent uploads are fast.
+
+### Q: Can I use this offline?
+**A:** Yes! Install Ollama and configure it in `.env`. The entire stack then runs locally with zero internet.
+
+### Q: How do I deploy this?
+**A:** 
+- **Backend:** Deploy FastAPI to Render, Railway, or Azure Container Apps (free tier available)
+- **Frontend:** Deploy React build to Vercel, Netlify, or GitHub Pages (free)
+- **Database:** ChromaDB data persists in deployed container
+
+### Q: Is my data private?
+**A:** With Groq, embeddings are calculated locally. Only the question text is sent to Groq's inference API. With Ollama, nothing leaves your machine.
+
+### Q: Can I add more documents to an existing session?
+**A:** Yes! Upload new documents anytime. They're added to the vector database and included in searches.
+
+---
+
+## 🐛 Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| `GROQ_API_KEY not found` | Create `backend/.env` with your Groq API key from console.groq.com |
+| `ModuleNotFoundError: chromadb` | Activate venv: `venv\Scripts\activate` then `pip install -r requirements.txt` |
+| `npm: command not found` | Install Node.js from https://nodejs.org (includes npm) |
+| Port 8000 already in use | Edit `start.bat`: change `--port 8000` to `--port 8001`, update frontend proxy in `vite.config.js` |
+| First embedding is slow | This is normal! ~30s for first document as model downloads. Subsequent are <5s |
+| `Connection refused localhost:8000` | Ensure backend started: check terminal running `uvicorn` |
+| Files not uploading | Check `backend/uploads/` folder exists and is writable |
+| ChromaDB corrupted | Delete `backend/chroma_db/` folder, app recreates it on restart |
+
+---
+
+## 🚀 Performance Optimization
+
+### For Large Documents
+```python
+# backend/services/rag_chain.py
+CHUNK_SIZE = 1500          # Increase from 1000 for better context
+CHUNK_OVERLAP = 200        # Reduce from 300 for speed vs accuracy tradeoff
+RETRIEVAL_K = 6            # Get more context chunks (default: 4)
+```
+
+### Faster Responses
+- Use `llama3-8b-8192` model (fastest on Groq free tier)
+- Deploy backend geographically close to users
+- Cache frequently asked questions
 
 ---
 
 ## 📜 License
-MIT — free to use, modify, and present as your own project.
+
+This project is released under the **MIT License** — free to use, modify, and redistribute.
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Areas for improvement:
+- [ ] User authentication & multi-user support
+- [ ] Support for more file formats (Excel, PowerPoint, HTML)
+- [ ] PDF page number extraction in citations
+- [ ] Streaming document processing for very large files
+- [ ] Local model quantization for faster inference
+- [ ] Advanced analytics and usage metrics
+
+---
+
+## 📞 Support
+
+- **Issues:** Found a bug? Open a GitHub issue with reproduction steps
+- **Groq API Help:** https://console.groq.com/docs
+- **FastAPI Docs:** https://fastapi.tiangolo.com/
+- **React Docs:** https://react.dev/
+
+---
+
+**Made with ❤️ by the DocInsight team**
+
+*Last Updated: April 2026 | Production Ready*
