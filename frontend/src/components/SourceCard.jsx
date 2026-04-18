@@ -27,7 +27,7 @@ export default function SourceCard({ sources, onViewPDF }) {
             <div 
               key={i} 
               className="p-3 bg-[var(--bg-primary)] animate-fade-in-delayed"
-              style={{ animationDelay: `${i * 0.1}s` }}
+              style={{ animationDelay: `${i * 0.25}s` }}
             >
               <div className="flex items-center gap-2 mb-1.5">
                 <FileText size={12} className="text-[var(--accent)] shrink-0" />
