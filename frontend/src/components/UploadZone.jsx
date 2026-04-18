@@ -29,7 +29,11 @@ export default function UploadZone({ onUploadSuccess }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: { 
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'text/plain': ['.txt']
+    },
     multiple: true,
     maxSize: 100 * 1024 * 1024,
   })
@@ -52,9 +56,9 @@ export default function UploadZone({ onUploadSuccess }) {
           className={clsx('mx-auto mb-3 transition-colors', isDragActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]')}
         />
         <p className="text-sm font-medium text-[var(--text-primary)]">
-          {isDragActive ? 'Drop PDFs here…' : 'Drag & drop PDFs here'}
+          {isDragActive ? 'Drop files here…' : 'Drag & drop files here'}
         </p>
-        <p className="text-xs text-[var(--text-muted)] mt-1">or click to browse · max 100MB each</p>
+        <p className="text-xs text-[var(--text-muted)] mt-1">PDFs, DOCX, or TXT · max 100MB each</p>
       </div>
 
       {/* Upload progress list */}

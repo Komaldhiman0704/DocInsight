@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Moon, Sun, Trash2, MessageSquare, ChevronLeft, ChevronRight, Bot, Download } from 'lucide-react'
+import { Moon, Sun, Trash2, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
 
@@ -13,6 +13,7 @@ import DocumentSummaryCard from './components/DocumentSummaryCard'
 import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
 import PDFViewer from './components/PDFViewer'
+import Logo from './components/Logo'
 
 const SUGGESTIONS = [
   'Generate comprehensive summary',
@@ -129,6 +130,10 @@ export default function App() {
         role: msg.role,
         content: msg.content,
         sources: msg.sources || [],
+        suggestions: msg.suggestions || [],
+        confidence: msg.confidence || null,
+        relevance_score: msg.relevance_score || 0,
+        source_count: msg.sources?.length || 0,
         status: 'done',
         timestamp: msg.timestamp,
       }))
@@ -337,17 +342,26 @@ export default function App() {
       >
         <div className="flex flex-col h-full" style={{ minWidth: '288px' }}>
           {/* Header */}
-          <div className="flex items-center gap-2.5 px-4 py-4 border-b border-[var(--border)]">
-            <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center shrink-0">
-              <Bot size={14} className="text-white" />
+          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--border)]">
+            {/* Premium Logo Container */}
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl opacity-0 group-hover:opacity-20 blur-md transition-all duration-300" />
+              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/60 dark:to-blue-800/40 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 border border-blue-200 dark:border-blue-700/30 hover:shadow-blue-500/30 transition-all duration-300">
+                <Logo size={22} animated={true} />
+              </div>
             </div>
-            <span className="font-semibold text-sm text-[var(--text-primary)]">PDF Chatbot AI</span>
+            
+            {/* Title */}
+            <div className="flex flex-col">
+              <span className="font-bold text-sm tracking-tight text-[var(--text-primary)]">DocInsight</span>
+              <span className="text-xs text-[var(--text-muted)] font-medium">AI Document Assistant</span>
+            </div>
           </div>
 
           {/* Upload */}
           <div className="p-3 border-b border-[var(--border)]">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-1">
-              Upload PDFs
+              Upload Documents
             </p>
             <UploadZone onUploadSuccess={handleDocumentUploaded} />
           </div>
@@ -433,7 +447,7 @@ export default function App() {
 
           <div className="flex-1 text-sm text-[var(--text-secondary)]">
             {!hasDocuments
-              ? <span className="text-[var(--text-muted)]">Upload a PDF to get started</span>
+              ? <span className="text-[var(--text-muted)]">Upload documents to get started</span>
               : !hasSelected
                 ? <span className="text-amber-600 dark:text-amber-400">Select at least one document</span>
                 : <span>Querying <strong className="text-[var(--text-primary)]">{selectedIds.length}</strong> document{selectedIds.length > 1 ? 's' : ''}</span>
@@ -482,15 +496,18 @@ export default function App() {
 
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center select-none">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-200 dark:shadow-blue-900/30">
-                <MessageSquare size={26} className="text-white" />
+              <div className="relative group mb-6">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 rounded-3xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-300" />
+                <div className="relative w-16 h-16 rounded-3xl bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/60 dark:to-blue-800/40 flex items-center justify-center shadow-2xl shadow-blue-300/30 dark:shadow-blue-900/50 border border-blue-200 dark:border-blue-700/40 hover:shadow-blue-400/40 transition-all duration-300">
+                  <Logo size={36} animated={true} />
+                </div>
               </div>
               <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">
-                Ask your PDFs anything
+                Ask your documents anything
               </h2>
               <p className="text-sm text-[var(--text-muted)] max-w-sm mb-6 leading-relaxed">
-                Upload PDF documents and chat with them using AI.
-                Get answers with exact page citations.
+                Upload PDFs, DOCX, or TXT files and chat with them using AI.
+                Get answers with exact citations.
               </p>
               {hasSelected && (
                 <div className="flex flex-wrap gap-2 justify-center max-w-md">

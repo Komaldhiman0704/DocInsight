@@ -17,9 +17,23 @@ logger = logging.getLogger(__name__)
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
 REPHRASE_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """Given a chat history and a follow-up question, rephrase the follow-up
-question to be a standalone question that contains all necessary context.
-If it is already standalone, return it unchanged.
+    ("system", """You are an expert at reformulating ambiguous questions into clear, specific, retrieval-optimized queries.
+
+Your task:
+- Take a follow-up question (possibly vague or context-dependent) and rephrase it into a standalone question
+- Preserve the original intent while making it more specific and search-friendly
+- Add necessary context from chat history to make the question self-contained
+- If the original is already clear and standalone, return it unchanged
+- Use technical and domain-specific terminology when appropriate for better document matching
+- Make the rephrased question concise but comprehensive (typically 10-30 words)
+
+Guidelines:
+✓ Make vague pronouns specific (e.g., "it" → "the topic/document name")
+✓ Add domain context when needed for retrieval quality
+✓ Expand abbreviations and acronyms only when helpful
+✓ Keep the core question intent unchanged
+✓ Optimize for search and vector similarity matching
+
 Return ONLY the rephrased question, nothing else."""),
     MessagesPlaceholder(variable_name="chat_history"),
     ("human", "{question}"),
@@ -155,13 +169,14 @@ def calculate_confidence(similarity_scores: list[float]) -> dict:
     }
 
 
-async def generate_suggestions(question: str, answer: str) -> list[str]:
+async def generate_suggestions(question: str, answer: str, sources: list[dict] = None) -> list[str]:
     """
     Generate follow-up question suggestions.
     
     Args:
         question: The original question asked
         answer: The generated answer
+        sources: Optional list of source documents used
         
     Returns:
         List of 3 follow-up questions (or empty list on failure)
@@ -169,6 +184,13 @@ async def generate_suggestions(question: str, answer: str) -> list[str]:
     try:
         llm = get_llm()
         followup_chain = FOLLOWUP_PROMPT | llm | StrOutputParser()
+        
+        # Build context for suggestions, including sources if available
+        sources_context = ""
+        if sources:
+            source_files = set(s.get("filename", "unknown") for s in sources)
+            sources_context = f"(Sources: {', '.join(source_files)})"
+        
         response = await followup_chain.ainvoke({
             "question": question,
             "answer": answer,
@@ -302,5 +324,5 @@ async def stream_rag_chain(
         yield token
 
     # Generate and yield follow-up suggestions AFTER streaming completes
-    suggestions = await generate_suggestions(question, full_answer)
+    suggestions = await generate_suggestions(question, full_answer, sources)
     yield f"__SUGGESTIONS__{json.dumps(suggestions)}\n"

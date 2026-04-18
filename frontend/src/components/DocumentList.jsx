@@ -35,7 +35,7 @@ export default function DocumentList({ documents, selectedIds, onToggle, onDelet
     return (
       <div className="text-center py-8 text-[var(--text-muted)]">
         <FileText size={32} className="mx-auto mb-2 opacity-30" />
-        <p className="text-sm">No PDFs uploaded yet</p>
+        <p className="text-sm">No documents uploaded yet</p>
       </div>
     )
   }

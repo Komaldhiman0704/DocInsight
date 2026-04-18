@@ -10,6 +10,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.documents import Document
 from config import get_settings
 import logging
 
@@ -58,44 +59,127 @@ def get_vectorstore():
         )
     return _vectorstore
 
-def ingest_pdf(file_path: str, doc_id: str, filename: str) -> int:
+
+def load_docx_file(file_path: str, filename: str) -> list[Document]:
     """
-    Load a PDF, split into chunks, embed, and store in ChromaDB.
+    Load a DOCX file and return list of Document objects.
+    Each paragraph becomes a document with metadata.
+    """
+    try:
+        from docx import Document as DocxDocument
+    except ImportError:
+        raise ImportError("python-docx not installed. Run: pip install python-docx")
+    
+    logger.info(f"Loading DOCX file: {filename}")
+    doc = DocxDocument(file_path)
+    
+    # Extract all paragraphs
+    documents = []
+    for para_idx, para in enumerate(doc.paragraphs):
+        if para.text.strip():  # Skip empty paragraphs
+            doc_obj = Document(
+                page_content=para.text,
+                metadata={"page": para_idx + 1, "filename": filename}
+            )
+            documents.append(doc_obj)
+    
+    logger.info(f"Extracted {len(documents)} paragraphs from {filename}")
+    return documents
+
+
+def load_txt_file(file_path: str, filename: str) -> list[Document]:
+    """
+    Load a TXT file and return list of Document objects.
+    """
+    logger.info(f"Loading TXT file: {filename}")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Split by double newlines (paragraphs) first
+    paragraphs = content.split('\n\n')
+    documents = []
+    
+    for para_idx, para in enumerate(paragraphs):
+        if para.strip():  # Skip empty sections
+            doc_obj = Document(
+                page_content=para.strip(),
+                metadata={"page": para_idx + 1, "filename": filename}
+            )
+            documents.append(doc_obj)
+    
+    logger.info(f"Extracted {len(documents)} sections from {filename}")
+    return documents
+
+
+def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
+    """
+    Generic document ingestion function that detects file type and processes accordingly.
+    Supports: PDF, DOCX, TXT
     Returns number of chunks stored.
     """
-    logger.info(f"Ingesting PDF: {filename}")
+    file_ext = os.path.splitext(filename)[1].lower()
+    
+    try:
+        if file_ext == '.pdf':
+            # Load PDF
+            loader = PyPDFLoader(file_path)
+            pages = loader.load()
+            
+            # Add metadata
+            for i, page in enumerate(pages):
+                page.metadata["doc_id"] = doc_id
+                page.metadata["filename"] = filename
+                page.metadata["page"] = i + 1
+        
+        elif file_ext == '.docx':
+            # Load DOCX
+            pages = load_docx_file(file_path, filename)
+            for doc in pages:
+                doc.metadata["doc_id"] = doc_id
+        
+        elif file_ext == '.txt':
+            # Load TXT
+            pages = load_txt_file(file_path, filename)
+            for doc in pages:
+                doc.metadata["doc_id"] = doc_id
+        
+        else:
+            raise ValueError(f"Unsupported file format: {file_ext}")
+        
+        # Split into chunks
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=settings.CHUNK_SIZE,
+            chunk_overlap=settings.CHUNK_OVERLAP,
+            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""],
+        )
+        chunks = splitter.split_documents(pages)
+        
+        logger.info(f"Split {filename} into {len(chunks)} chunks")
+        
+        # Add doc_id to each chunk for filtering
+        for chunk in chunks:
+            chunk.metadata["doc_id"] = doc_id
+            chunk.metadata["filename"] = filename
+        
+        # Store in ChromaDB
+        vectorstore = get_vectorstore()
+        vectorstore.add_documents(chunks)
+        
+        logger.info(f"Stored {len(chunks)} chunks for {filename}")
+        return len(chunks)
+        
+    except Exception as e:
+        logger.error(f"Failed to ingest document {filename}: {e}", exc_info=True)
+        raise
 
-    # Load PDF
-    loader = PyPDFLoader(file_path)
-    pages = loader.load()
 
-    # Add metadata to each page
-    for i, page in enumerate(pages):
-        page.metadata["doc_id"] = doc_id
-        page.metadata["filename"] = filename
-        page.metadata["page"] = i + 1
-
-    # Split into chunks
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=settings.CHUNK_SIZE,
-        chunk_overlap=settings.CHUNK_OVERLAP,
-        separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""],
-    )
-    chunks = splitter.split_documents(pages)
-
-    logger.info(f"Split into {len(chunks)} chunks")
-
-    # Add doc_id to each chunk for filtering
-    for chunk in chunks:
-        chunk.metadata["doc_id"] = doc_id
-        chunk.metadata["filename"] = filename
-
-    # Store in ChromaDB
-    vectorstore = get_vectorstore()
-    vectorstore.add_documents(chunks)
-
-    logger.info(f"Stored {len(chunks)} chunks for {filename}")
-    return len(chunks)
+# Keep ingest_pdf for backward compatibility
+def ingest_pdf(file_path: str, doc_id: str, filename: str) -> int:
+    """
+    Backward compatibility wrapper for ingest_document.
+    """
+    return ingest_document(file_path, doc_id, filename)
 
 def delete_document(doc_id: str):
     """Delete all chunks belonging to a document"""

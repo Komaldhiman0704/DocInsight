@@ -104,14 +104,15 @@ async def chat_stream(req: ChatRequest):
                 try:
                     # Save user question
                     save_message(req.session_id, "user", req.question)
-                    # Save assistant answer with sources, confidence, and relevance
+                    # Save assistant answer with sources, confidence, relevance, and suggestions
                     save_message(
                         req.session_id, 
                         "assistant", 
                         answer_content, 
                         sources=sources_list,
                         confidence=confidence,
-                        relevance_score=relevance_score
+                        relevance_score=relevance_score,
+                        suggestions=suggestions
                     )
                 except Exception as e:
                     logger.warning(f"Could not save session: {e}")

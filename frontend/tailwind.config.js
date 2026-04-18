@@ -26,7 +26,11 @@ export default {
         'fade-in': 'fadeIn 0.3s ease-out',
         'slide-up': 'slideUp 0.3s ease-out',
         'pulse-dot': 'pulseDot 1.2s ease-in-out infinite',
+        'pulse-subtle': 'pulseSubtle 2s ease-in-out infinite',
+        'spark-float': 'sparkFloat 3s ease-in-out infinite',
         'shimmer': 'shimmer 1.5s infinite',
+        'in': 'fadeIn 0.2s ease-out',
+        'slide-in': 'slideIn 0.3s ease-out cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
       keyframes: {
         fadeIn: {
@@ -37,9 +41,21 @@ export default {
           from: { opacity: 0, transform: 'translateY(8px)' },
           to: { opacity: 1, transform: 'translateY(0)' },
         },
+        slideIn: {
+          from: { opacity: 0, transform: 'translateY(-4px)' },
+          to: { opacity: 1, transform: 'translateY(0)' },
+        },
         pulseDot: {
           '0%, 80%, 100%': { transform: 'scale(0)', opacity: 0.5 },
           '40%': { transform: 'scale(1)', opacity: 1 },
+        },
+        pulseSubtle: {
+          '0%, 100%': { opacity: 1 },
+          '50%': { opacity: 0.7 },
+        },
+        sparkFloat: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-4px)' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },

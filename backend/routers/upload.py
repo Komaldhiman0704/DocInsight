@@ -1,6 +1,6 @@
 """
 Upload Router
-POST /api/upload  - Upload and ingest a PDF
+POST /api/upload  - Upload and ingest a document (PDF, DOCX, or TXT)
 """
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -10,7 +10,7 @@ import shutil
 import logging
 
 from config import get_settings
-from services.vector_store import ingest_pdf
+from services.vector_store import ingest_document
 from services.document_store import add_document, update_document_summary
 from services.summarizer import generate_summary
 
@@ -18,7 +18,13 @@ router = APIRouter()
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-ALLOWED_TYPES = {"application/pdf", "application/x-pdf"}
+ALLOWED_TYPES = {
+    "application/pdf", 
+    "application/x-pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # DOCX
+    "text/plain"  # TXT
+}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 MAX_BYTES = settings.MAX_FILE_SIZE_MB * 1024 * 1024
 
 
@@ -34,9 +40,9 @@ async def generate_summary_and_save(doc_id: str, file_path: str, filename: str):
 
 
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+async def upload_document(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     """
-    Upload a PDF file, process it into chunks, and store embeddings.
+    Upload a document (PDF, DOCX, or TXT), process it into chunks, and store embeddings.
     Returns document metadata.
     
     Raises:
@@ -44,9 +50,13 @@ async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundT
       413: File exceeds max size
       500: Processing error
     """
-    # Validate file type
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(400, "Only PDF files are supported. Please upload a .pdf file.")
+    # Validate file extension
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            400, 
+            f"Unsupported file type: {file_ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
 
     # Read file content
     content = await file.read()
@@ -73,9 +83,11 @@ async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundT
         f.write(content)
 
     try:
-        logger.info(f"Processing PDF: {file.filename} ({len(content) / (1024*1024):.1f}MB)")
-        # Ingest into vector store
-        chunk_count = ingest_pdf(file_path, doc_id, file.filename)
+        file_type = file_ext[1:].upper()  # Remove the dot and uppercase
+        logger.info(f"Processing {file_type}: {file.filename} ({len(content) / (1024*1024):.1f}MB)")
+        
+        # Ingest document (handles PDF, DOCX, TXT)
+        chunk_count = ingest_document(file_path, doc_id, file.filename)
 
         # Save metadata
         add_document(
@@ -107,5 +119,5 @@ async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundT
         # Cleanup on failure
         if os.path.exists(file_path):
             os.remove(file_path)
-        logger.error(f"PDF processing failed: {str(e)}", exc_info=True)
-        raise HTTPException(500, f"Failed to process PDF: {str(e)}")
+        logger.error(f"Document processing failed: {str(e)}", exc_info=True)
+        raise HTTPException(500, f"Failed to process document: {str(e)}")

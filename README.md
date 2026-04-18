@@ -1,13 +1,13 @@
-# 📄 AI PDF Chatbot — Full Stack (Free)
+# 📄 DocInsight — Full Stack (Free)
 
-A production-ready RAG chatbot that lets you chat with your PDF documents using AI.  
+A production-ready RAG chatbot that lets you chat with your documents using AI.  
 **100% free stack** — no paid APIs required (uses Groq's free tier + local ChromaDB + HuggingFace embeddings).
 
 ---
 
 ## ✨ Features
 
-- 📤 **Multi-PDF Upload** — drag & drop multiple PDFs at once
+- 📤 **Multi-Document Upload** — drag & drop PDFs, DOCX, and TXT files
 - 🤖 **AI Chat** — streaming answers powered by Llama3 via Groq (free)
 - 📚 **Source Citations** — every answer shows which page it came from
 - 🗂️ **Document Selection** — choose which PDFs to query
@@ -36,11 +36,12 @@ FastAPI Backend (port 8000)
 ```
 
 **RAG Flow:**
-1. PDF uploaded → split into 1000-char chunks
+1. Documents uploaded (PDF, DOCX, TXT) → split into 1000-char chunks
 2. Chunks embedded with `sentence-transformers/all-MiniLM-L6-v2` (runs locally)
 3. Embeddings stored in ChromaDB (local folder)
-4. User asks question → question rephrased with history → top 4 chunks retrieved
+4. User asks question → question intelligently rephrased with history → top 4 chunks retrieved
 5. LLM generates answer from chunks → streamed token by token to browser
+6. Confidence score and follow-up suggestions displayed
 
 ---
 

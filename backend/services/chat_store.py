@@ -63,7 +63,7 @@ def get_session(session_id: str) -> Optional[dict]:
         return json.load(f)
 
 
-def save_message(session_id: str, role: str, content: str, sources: list = None, confidence: str = None, relevance_score: float = None) -> bool:
+def save_message(session_id: str, role: str, content: str, sources: list = None, confidence: str = None, relevance_score: float = None, suggestions: list = None) -> bool:
     """
     Save a message to a session.
     
@@ -74,6 +74,7 @@ def save_message(session_id: str, role: str, content: str, sources: list = None,
         sources: Optional list of source documents
         confidence: Optional confidence level ("high", "medium", "low")
         relevance_score: Optional relevance score (0.0-1.0)
+        suggestions: Optional list of follow-up suggestions
         
     Returns:
         True if successful, False if session not found
@@ -88,7 +89,8 @@ def save_message(session_id: str, role: str, content: str, sources: list = None,
         "role": role,
         "content": content,
         "timestamp": datetime.now().isoformat(),
-        "sources": sources or []
+        "sources": sources or [],
+        "suggestions": suggestions or []
     }
     
     # Add confidence metrics if provided (AI responses)
@@ -129,12 +131,14 @@ def list_sessions() -> list[dict]:
             path = os.path.join(SESSIONS_DIR, filename)
             with open(path, "r") as f:
                 session = json.load(f)
+                # Count only user messages (queries), not assistant responses
+                user_message_count = sum(1 for msg in session["messages"] if msg.get("role") == "user")
                 sessions.append({
                     "id": session["id"],
                     "title": session["title"],
                     "created_at": session["created_at"],
                     "doc_ids": session["doc_ids"],
-                    "message_count": len(session["messages"])
+                    "message_count": user_message_count
                 })
     
     # Sort by created_at descending (newest first)

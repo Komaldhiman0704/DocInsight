@@ -1,5 +1,5 @@
 """
-AI PDF Chatbot - FastAPI Backend
+DocInsight - FastAPI Backend
 Free stack: HuggingFace Embeddings + ChromaDB + Groq LLM (free tier)
 """
 from fastapi import FastAPI
@@ -11,8 +11,8 @@ from routers import chat, upload, documents, sessions
 from services.vector_store import shutdown_vectorstore
 
 app = FastAPI(
-    title="AI PDF Chatbot API",
-    description="RAG-powered PDF chatbot using LangChain + ChromaDB",
+    title="DocInsight API",
+    description="RAG-powered document chatbot using LangChain + ChromaDB",
     version="1.0.0"
 )
 
@@ -42,7 +42,7 @@ async def shutdown_event():
 
 @app.get("/")
 def root():
-    return {"status": "AI PDF Chatbot API running", "version": "1.0.0"}
+    return {"status": "DocInsight API running", "version": "1.0.0"}
 
 @app.get("/health")
 def health():
