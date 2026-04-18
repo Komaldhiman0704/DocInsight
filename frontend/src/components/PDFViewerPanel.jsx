@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Loader, AlertCircle, File } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.js?url'
 import clsx from 'clsx'
 
-// Set up PDF.js worker with proper HTTPS protocol
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+// Configure PDF.js worker to use local file from node_modules
+// This avoids CDN dependency and ensures reliability
+// Vite's ?url query parameter imports the file path as a URL string
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
 
 /**
  * PDFViewerPanel - Professional PDF Viewer with Page Jump (Citation-based Navigation)
