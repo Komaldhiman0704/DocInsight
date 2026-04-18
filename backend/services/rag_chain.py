@@ -108,7 +108,14 @@ def format_docs(docs: list[Document]) -> str:
     
     Returns:
         Formatted context string suitable for LLM prompt
+    
+    DEFENSIVE: Safely handles empty docs list without crashing
     """
+    # CRITICAL: Check for empty docs - prevents crashes downstream
+    if not docs or len(docs) == 0:
+        logger.warning("format_docs called with empty docs list")
+        return "[No relevant content found in documents]"
+    
     parts = []
     for i, doc in enumerate(docs, 1):
         page = doc.metadata.get("page", "?")
@@ -165,6 +172,11 @@ def extract_sources(docs: list[Document]) -> list[dict]:
     sources = []
     seen = set()
     
+    # DEFENSIVE: Check for empty docs list
+    if not docs or len(docs) == 0:
+        logger.debug("extract_sources called with empty docs list")
+        return sources
+    
     for doc in docs:
         # Create unique key to deduplicate (same file + same page = same source)
         filename = doc.metadata.get("filename", "Unknown")
@@ -194,6 +206,7 @@ def extract_sources(docs: list[Document]) -> list[dict]:
             
             sources.append(source_dict)
     
+    logger.debug(f"Extracted {len(sources)} unique sources from {len(docs)} chunks")
     return sources
 
 
@@ -330,10 +343,42 @@ async def run_rag_chain(
     else:
         standalone_question = question
 
-    # Step 2: Retrieve with scores
+    # Step 2: Retrieve with scores - CRITICAL: Check for empty results
     docs_with_scores = get_docs_with_scores(standalone_question, doc_ids)
+    
+    # DEFENSIVE: No relevant documents found
+    if not docs_with_scores or len(docs_with_scores) == 0:
+        logger.warning(
+            f"No relevant documents retrieved for query: {standalone_question}"
+        )
+        return {
+            "answer": "⚠️ I couldn't find relevant information in the uploaded documents to answer your question. Try rephrasing your query or uploading additional documents.",
+            "sources": [],
+            "suggestions": [],
+            "confidence": "low",
+            "relevance_score": 0.0,
+            "source_count": 0,
+            "ocr_sources": False,
+            "standalone_question": standalone_question,
+        }
+    
     docs = [doc for doc, score in docs_with_scores]
     scores = [score for doc, score in docs_with_scores]
+    
+    # Extra safety check (should never happen, but defensive coding)
+    if not docs or len(docs) == 0:
+        logger.error("docs_with_scores returned results but docs list is empty - this should not happen")
+        return {
+            "answer": "⚠️ An error occurred while processing the documents.",
+            "sources": [],
+            "suggestions": [],
+            "confidence": "low",
+            "relevance_score": 0.0,
+            "source_count": 0,
+            "ocr_sources": False,
+            "standalone_question": standalone_question,
+        }
+    
     context = format_docs(docs)
 
     # Step 3: Generate
@@ -390,10 +435,50 @@ async def stream_rag_chain(
     else:
         standalone_question = question
 
-    # Retrieve with scores
+    # Retrieve with scores - CRITICAL: Check for empty results
     docs_with_scores = get_docs_with_scores(standalone_question, doc_ids)
+    
+    # DEFENSIVE: No relevant documents found - return safe empty response
+    if not docs_with_scores or len(docs_with_scores) == 0:
+        logger.warning(
+            f"No relevant documents retrieved for streaming query: {standalone_question}"
+        )
+        
+        # Yield safe empty sources
+        empty_sources_payload = {
+            "sources": [],
+            "confidence": "low",
+            "relevance_score": 0.0,
+            "source_count": 0,
+            "ocr_sources": False,
+        }
+        yield f"__SOURCES__{json.dumps(empty_sources_payload)}\n"
+        
+        # Yield warning message
+        yield "⚠️ I couldn't find relevant information in the uploaded documents to answer your question. Try rephrasing your query or uploading additional documents.\n"
+        
+        # Yield empty suggestions
+        yield f"__SUGGESTIONS__{json.dumps([])}\\n"
+        return
+    
     docs = [doc for doc, score in docs_with_scores]
     scores = [score for doc, score in docs_with_scores]
+    
+    # Extra safety check
+    if not docs or len(docs) == 0:
+        logger.error("docs_with_scores returned results but docs list is empty")
+        empty_sources_payload = {
+            "sources": [],
+            "confidence": "low",
+            "relevance_score": 0.0,
+            "source_count": 0,
+            "ocr_sources": False,
+        }
+        yield f"__SOURCES__{json.dumps(empty_sources_payload)}\\n"
+        yield "⚠️ An error occurred while processing the documents.\\n"
+        yield f"__SUGGESTIONS__{json.dumps([])}\\n"
+        return
+    
     context = format_docs(docs)
     sources = extract_sources(docs)
 

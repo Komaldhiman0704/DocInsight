@@ -344,6 +344,7 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
     Returns list of Document objects (one per page/section).
     
     CRITICAL: Preserves page-wise structure for proper source attribution.
+    DEFENSIVE: Never returns None, always returns list (even if empty or placeholder)
     
     This is the primary interface used by vector_store.py
     
@@ -358,95 +359,119 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
         - source: "pdf" or "pdf_with_ocr"
         - ocr_used: Boolean - whether OCR was used
         - quality_score: Quality assessment of text
+    
+    ALWAYS returns list, never None.
     """
-    text = extract_text_with_ocr(file_path)
-    
-    # Detect if OCR was used by checking extraction history
-    # (In production, you might track this separately)
-    ocr_used = detect_scanned_pdf(file_path)
-    
-    # Split into logical sections (by page markers from OCR)
-    pages = []
-    current_page = 1
-    page_content_parts = []
-    
-    for line in text.split('\n'):
-        if line.startswith('--- Page'):
-            # New page marker detected
-            if page_content_parts:
-                page_text = '\n'.join(page_content_parts).strip()
-                if page_text:
-                    pages.append({
-                        'page': current_page,
-                        'content': page_text
-                    })
+    try:
+        text = extract_text_with_ocr(file_path)
+        
+        # DEFENSIVE: Check if text extraction produced anything
+        if not text or len(text.strip()) == 0:
+            logger.error(f"No text extracted from {filename} - returning empty list")
+            return []
+        
+        # Detect if OCR was used by checking extraction history
+        ocr_used = detect_scanned_pdf(file_path)
+        
+        # Split into logical sections (by page markers from OCR)
+        pages = []
+        current_page = 1
+        page_content_parts = []
+        
+        for line in text.split('\n'):
+            if line.startswith('--- Page'):
+                # New page marker detected
+                if page_content_parts:
+                    page_text = '\n'.join(page_content_parts).strip()
+                    if page_text:
+                        pages.append({
+                            'page': current_page,
+                            'content': page_text
+                        })
+                
+                # Extract page number
+                try:
+                    current_page = int(line.split('Page ')[1].split(' ---')[0])
+                except (IndexError, ValueError):
+                    current_page += 1
+                
+                page_content_parts = []
+            else:
+                page_content_parts.append(line)
+        
+        # Don't forget last page
+        if page_content_parts:
+            page_text = '\n'.join(page_content_parts).strip()
+            if page_text:
+                pages.append({
+                    'page': current_page,
+                    'content': page_text
+                })
+        
+        # DEFENSIVE: Check if page splitting produced any pages
+        if not pages or len(pages) == 0:
+            logger.warning(
+                f"Page splitting produced 0 pages from {filename} - "
+                f"text length: {len(text)} chars, creating single document"
+            )
+            pages = [{
+                'page': 1,
+                'content': text.strip()
+            }]
+        
+        # Create Document objects with comprehensive metadata
+        documents = []
+        for page_data in pages:
+            content = page_data['content'].strip()
             
-            # Extract page number
-            try:
-                current_page = int(line.split('Page ')[1].split(' ---')[0])
-            except (IndexError, ValueError):
-                current_page += 1
+            # DEFENSIVE: Skip completely empty pages
+            if not content or len(content) == 0:
+                logger.debug(f"Skipping empty page {page_data['page']} from {filename}")
+                continue
             
-            page_content_parts = []
-        else:
-            page_content_parts.append(line)
-    
-    # Don't forget last page
-    if page_content_parts:
-        page_text = '\n'.join(page_content_parts).strip()
-        if page_text:
-            pages.append({
-                'page': current_page,
-                'content': page_text
-            })
-    
-    # Create Document objects with comprehensive metadata
-    documents = []
-    for page_data in pages:
-        content = page_data['content'].strip()
-        if not content:
-            continue
+            # Assess quality for this page
+            quality_metrics = assess_quality(content, source="ocr" if ocr_used else "pdf")
+            
+            doc = Document(
+                page_content=content,
+                metadata={
+                    "page": page_data['page'],
+                    "filename": filename,
+                    "source": "pdf_with_ocr" if ocr_used else "pdf",
+                    "ocr_used": ocr_used,
+                    "quality_score": quality_metrics.get("quality", "unknown"),
+                    "char_count": quality_metrics.get("char_count", 0),
+                    "noise_indicators": quality_metrics.get("noise_indicators", []),
+                }
+            )
+            documents.append(doc)
+            
+            # Log quality assessment
+            logger.debug(
+                f"Page {page_data['page']} ({filename}): "
+                f"{quality_metrics.get('char_count', 0)} chars, "
+                f"quality={quality_metrics.get('quality')}"
+            )
         
-        # Assess quality for this page
-        quality_metrics = assess_quality(content, source="ocr" if ocr_used else "pdf")
+        # DEFENSIVE: Ensure we have at least one document
+        if not documents or len(documents) == 0:
+            logger.error(
+                f"No documents created from {filename} after filtering - "
+                f"OCR extraction may have failed"
+            )
+            return []
         
-        doc = Document(
-            page_content=content,
-            metadata={
-                "page": page_data['page'],
-                "filename": filename,
-                "source": "pdf_with_ocr" if ocr_used else "pdf",
-                "ocr_used": ocr_used,
-                "quality_score": quality_metrics.get("quality", "unknown"),
-                "char_count": quality_metrics.get("char_count", 0),
-                "noise_indicators": quality_metrics.get("noise_indicators", []),
-            }
+        logger.info(
+            f"✓ Successfully loaded {len(documents)} pages from {filename} "
+            f"(OCR used: {ocr_used})"
         )
-        documents.append(doc)
         
-        # Log quality assessment
-        logger.debug(
-            f"Page {page_data['page']} ({filename}): "
-            f"{quality_metrics.get('char_count', 0)} chars, "
-            f"quality={quality_metrics.get('quality')}"
+        return documents
+        
+    except Exception as e:
+        logger.error(
+            f"Failed to load PDF with OCR {filename}: {e}",
+            exc_info=True
         )
-    
-    if not documents:
-        logger.warning(f"No content extracted from {filename}")
-        # Return a placeholder document to avoid downstream errors
-        documents = [Document(
-            page_content=f"[Unable to extract content from {filename}]",
-            metadata={
-                "page": 1,
-                "filename": filename,
-                "source": "error",
-                "ocr_used": False,
-                "quality_score": "failed",
-            }
-        )]
-    
-    logger.info(
-        f"✓ Created {len(documents)} documents from {filename} "
-        f"(OCR used: {ocr_used})"
-    )
-    return documents
+        # DEFENSIVE: Return empty list instead of crashing
+        return []

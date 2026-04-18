@@ -167,11 +167,12 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
             raise ValueError(f"Unsupported file format: {file_ext}")
         
         # Validate extraction
-        if not pages:
+        if not pages or len(pages) == 0:
+            logger.error(f"No pages extracted from {filename} - OCR may have failed")
             raise ValueError(f"No content could be extracted from {filename}")
         
         logger.info(
-            f"Extracted {len(pages)} pages from {filename} - "
+            f"✓ Extracted {len(pages)} pages from {filename} - "
             f"now chunking per-page for source attribution"
         )
         
@@ -183,11 +184,36 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""],
         )
         
+        # DEFENSIVE: Track pages processed
+        pages_with_content = 0
+        pages_empty = 0
+        
         for page_num, page_doc in enumerate(pages, 1):
             page_number = page_doc.metadata.get("page", page_num)
             
+            # DEFENSIVE: Check page content before chunking
+            if not page_doc.page_content or len(page_doc.page_content.strip()) == 0:
+                logger.warning(f"Page {page_number} of {filename} has empty content - skipping")
+                pages_empty += 1
+                continue
+            
+            pages_with_content += 1
+            
             # Chunk this page individually
             page_chunks = splitter.split_documents([page_doc])
+            
+            # DEFENSIVE: Check if chunking produced output
+            if not page_chunks or len(page_chunks) == 0:
+                logger.warning(
+                    f"Chunking produced no output for page {page_number} of {filename} "
+                    f"(content: {len(page_doc.page_content)} chars)"
+                )
+                continue
+            
+            logger.debug(
+                f"Page {page_number}: {len(page_doc.page_content)} chars → "
+                f"{len(page_chunks)} chunks"
+            )
             
             # Add comprehensive metadata to each chunk
             for chunk_idx, chunk in enumerate(page_chunks, 1):
@@ -218,9 +244,20 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
                     f"on page {page_number}"
                 )
         
+        # CRITICAL: Ensure we have chunks before storing
+        if not all_chunks or len(all_chunks) == 0:
+            logger.error(
+                f"No chunks were created from {filename} - "
+                f"processed {pages_with_content} non-empty pages but produced 0 chunks"
+            )
+            raise ValueError(
+                f"Failed to create chunks from {filename} - document content may be invalid"
+            )
+        
         logger.info(
             f"Split {filename} into {len(all_chunks)} chunks "
-            f"across {len(pages)} pages"
+            f"across {pages_with_content} non-empty pages "
+            f"({pages_empty} empty pages skipped)"
         )
         
         # Store all chunks in ChromaDB
@@ -228,7 +265,8 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
         vectorstore.add_documents(all_chunks)
         
         logger.info(
-            f"✓ Stored {len(all_chunks)} chunks for {filename} in vector store"
+            f"✓ Successfully stored {len(all_chunks)} chunks for {filename} "
+            f"in vector store (doc_id: {doc_id})"
         )
         return len(all_chunks)
         
@@ -318,9 +356,12 @@ def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[t
             f"content_len={len(doc.page_content)}"
         )
     
+    # Safely get top score without index error
+    top_score = results[0][1] if results and len(results) > 0 else 0.0
+    
     logger.info(
         f"✓ Retrieved {len(results)} chunks for query. "
-        f"Top score: {results[0][1]:.3f if results else 0:.3f}"
+        f"Top score: {top_score:.3f}"
     )
     
     return results
