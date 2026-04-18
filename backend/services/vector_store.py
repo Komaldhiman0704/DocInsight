@@ -118,13 +118,21 @@ def load_txt_file(file_path: str, filename: str) -> list[Document]:
 
 def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
     """
-    Generic document ingestion function that detects file type and processes accordingly.
+    Smart document ingestion with page-aware chunking.
+    
+    CRITICAL FOR SOURCE ATTRIBUTION:
+    - Chunks per page (NOT full document)
+    - Preserves page metadata through pipeline
+    - Assigns unique chunk_id for tracking
+    - Logs chunk creation for debugging
+    
     Supports: PDF (with OCR support), DOCX, TXT
     
     For PDFs:
     - Attempts standard text extraction first
     - Falls back to OCR for scanned PDFs
-    - Caches OCR results to avoid redundant processing
+    - Preserves page numbers through chunking
+    - Detects and marks OCR-extracted pages
     
     Returns number of chunks stored.
     """
@@ -132,28 +140,28 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
     
     try:
         if file_ext == '.pdf':
-            # Load PDF with OCR support
+            # Load PDF with OCR support - returns page-wise documents
             logger.info(f"Loading PDF with OCR support: {filename}")
             pages = load_pdf_with_ocr(file_path, filename)
             
-            # Add metadata
-            for i, page in enumerate(pages):
+            # Add doc_id to each page
+            for page in pages:
                 page.metadata["doc_id"] = doc_id
                 page.metadata["filename"] = filename
-                if "page" not in page.metadata:
-                    page.metadata["page"] = i + 1
         
         elif file_ext == '.docx':
             # Load DOCX
             pages = load_docx_file(file_path, filename)
             for doc in pages:
                 doc.metadata["doc_id"] = doc_id
+                doc.metadata["filename"] = filename
         
         elif file_ext == '.txt':
             # Load TXT
             pages = load_txt_file(file_path, filename)
             for doc in pages:
                 doc.metadata["doc_id"] = doc_id
+                doc.metadata["filename"] = filename
         
         else:
             raise ValueError(f"Unsupported file format: {file_ext}")
@@ -162,27 +170,67 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
         if not pages:
             raise ValueError(f"No content could be extracted from {filename}")
         
-        # Split into chunks
+        logger.info(
+            f"Extracted {len(pages)} pages from {filename} - "
+            f"now chunking per-page for source attribution"
+        )
+        
+        # ─── SMART CHUNKING: Per-page to preserve source attribution ───
+        all_chunks = []
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP,
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""],
         )
-        chunks = splitter.split_documents(pages)
         
-        logger.info(f"Split {filename} into {len(chunks)} chunks")
+        for page_num, page_doc in enumerate(pages, 1):
+            page_number = page_doc.metadata.get("page", page_num)
+            
+            # Chunk this page individually
+            page_chunks = splitter.split_documents([page_doc])
+            
+            # Add comprehensive metadata to each chunk
+            for chunk_idx, chunk in enumerate(page_chunks, 1):
+                # Preserve all original metadata
+                chunk.metadata["doc_id"] = doc_id
+                chunk.metadata["filename"] = filename
+                chunk.metadata["page"] = page_number
+                
+                # Add new tracking metadata
+                chunk.metadata["chunk_id"] = f"{doc_id}_p{page_number}_c{chunk_idx}"
+                chunk.metadata["chunk_index"] = chunk_idx
+                chunk.metadata["chunks_on_page"] = len(page_chunks)
+                
+                # Preserve quality metrics from loader if available
+                if "quality_score" in page_doc.metadata:
+                    chunk.metadata["quality_score"] = page_doc.metadata["quality_score"]
+                if "ocr_used" in page_doc.metadata:
+                    chunk.metadata["ocr_used"] = page_doc.metadata["ocr_used"]
+                if "char_count" in page_doc.metadata:
+                    chunk.metadata["page_char_count"] = page_doc.metadata["char_count"]
+                
+                all_chunks.append(chunk)
+                
+                # Debug logging
+                logger.debug(
+                    f"Created chunk: {chunk.metadata['chunk_id']} "
+                    f"({len(chunk.page_content)} chars) "
+                    f"on page {page_number}"
+                )
         
-        # Add doc_id to each chunk for filtering
-        for chunk in chunks:
-            chunk.metadata["doc_id"] = doc_id
-            chunk.metadata["filename"] = filename
+        logger.info(
+            f"Split {filename} into {len(all_chunks)} chunks "
+            f"across {len(pages)} pages"
+        )
         
-        # Store in ChromaDB
+        # Store all chunks in ChromaDB
         vectorstore = get_vectorstore()
-        vectorstore.add_documents(chunks)
+        vectorstore.add_documents(all_chunks)
         
-        logger.info(f"Stored {len(chunks)} chunks for {filename}")
-        return len(chunks)
+        logger.info(
+            f"✓ Stored {len(all_chunks)} chunks for {filename} in vector store"
+        )
+        return len(all_chunks)
         
     except Exception as e:
         logger.error(f"Failed to ingest document {filename}: {e}", exc_info=True)
@@ -222,6 +270,13 @@ def get_retriever(doc_ids: list[str] | None = None):
 def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[tuple]:
     """
     Get documents with similarity scores for a query.
+    
+    CRITICAL FOR DEBUGGING SOURCE ATTRIBUTION:
+    - Logs all retrieved chunks with page numbers
+    - Logs similarity scores for quality assessment
+    - Logs filtering operations
+    - Preserves metadata through entire pipeline
+    
     Returns: list of (doc, score) tuples where score is 0.0-1.0
     """
     vectorstore = get_vectorstore()
@@ -232,16 +287,41 @@ def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[t
         k=settings.TOP_K_RESULTS * 2,  # Get more to account for filtering
     )
     
+    # Log retrieval for debugging
+    logger.debug(f"Query: '{query}' → Retrieved {len(results)} candidates")
+    
     # Filter by doc_ids if specified
     if doc_ids:
+        logger.debug(f"Filtering by doc_ids: {doc_ids}")
         results = [
             (doc, score) for doc, score in results 
             if doc.metadata.get("doc_id") in doc_ids
         ]
+        logger.debug(f"After filtering: {len(results)} results match selected documents")
         # Trim to TOP_K_RESULTS after filtering
         results = results[:settings.TOP_K_RESULTS]
     else:
+        logger.debug(f"No document filter - using all {len(results)} results")
         results = results[:settings.TOP_K_RESULTS]
+    
+    # Log final retrieved chunks for source attribution verification
+    for idx, (doc, score) in enumerate(results, 1):
+        filename = doc.metadata.get("filename", "unknown")
+        page = doc.metadata.get("page", "?")
+        chunk_id = doc.metadata.get("chunk_id", "unknown")
+        ocr_used = doc.metadata.get("ocr_used", False)
+        quality = doc.metadata.get("quality_score", "unknown")
+        
+        logger.debug(
+            f"  [{idx}] {filename}:p{page} (chunk: {chunk_id}) "
+            f"score={score:.3f} ocr={ocr_used} quality={quality} "
+            f"content_len={len(doc.page_content)}"
+        )
+    
+    logger.info(
+        f"✓ Retrieved {len(results)} chunks for query. "
+        f"Top score: {results[0][1]:.3f if results else 0:.3f}"
+    )
     
     return results
 

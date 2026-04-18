@@ -69,6 +69,7 @@ export default function ChatMessage({ message, onSuggestionClick, onViewPDF }) {
               confidence={message.confidence}
               relevance_score={message.relevance_score}
               source_count={message.source_count}
+              ocr_sources={message.ocr_sources}
             />
           </div>
         )}

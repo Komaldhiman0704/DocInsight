@@ -272,6 +272,7 @@ export default function App() {
       confidence: null,
       relevance_score: 0,
       source_count: 0,
+      ocr_sources: false,
       status: 'thinking',
       timestamp: new Date().toISOString(),
     }
@@ -298,6 +299,7 @@ export default function App() {
                   confidence: chunk.confidence || null,
                   relevance_score: chunk.relevance_score || 0,
                   source_count: chunk.source_count || 0,
+                  ocr_sources: chunk.ocr_sources || false,
                   status: 'streaming' 
                 }
               : m

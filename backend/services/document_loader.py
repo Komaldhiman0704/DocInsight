@@ -24,6 +24,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from config import get_settings
 from services.ocr_utils import safe_ocr_extract, OCRConfig
+from services.text_cleaner import TextCleaner, assess_quality
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -117,12 +118,7 @@ def _normalize_text(text: str, source: str = "standard") -> str:
     """
     Normalize extracted text for consistency and usability.
     
-    Handles:
-    - Whitespace normalization
-    - UTF-8 encoding fixes
-    - Hyphenation repair (for OCR text)
-    - Line break standardization
-    - Artifact removal
+    Uses TextCleaner utility for production-grade normalization.
     
     Args:
         text: Raw extracted text
@@ -134,33 +130,11 @@ def _normalize_text(text: str, source: str = "standard") -> str:
     if not text:
         return ""
     
-    # Remove control characters except newline/tab
-    text = ''.join(c for c in text if c.isprintable() or c in '\n\r\t')
-    
-    # Normalize whitespace
-    text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single
-    text = re.sub(r'\n\n+', '\n\n', text)  # Multiple newlines to double
-    text = re.sub(r' +\n', '\n', text)  # Trailing spaces before newline
-    
+    # Use TextCleaner for consistent normalization
     if source == "ocr":
-        # OCR-specific cleaning
-        
-        # Fix common OCR errors
-        text = re.sub(r'\b0([A-Z])\b', r'O\1', text)  # 0 → O in acronyms
-        text = re.sub(r'(\w)-\n(\w)', r'\1\2', text)  # Repair hyphenated line breaks
-        
-        # Fix spaces before punctuation
-        text = re.sub(r' ([.,:;!?)])', r'\1', text)
-        
-        # Normalize quotes
-        text = re.sub(r'["""]', '"', text)
-        text = re.sub(r"[''']", "'", text)
-        
-        # Remove excessive punctuation
-        text = re.sub(r'\.{2,}', '.', text)
-        text = re.sub(r'\?{2,}', '?', text)
-    
-    return text.strip()
+        return TextCleaner.clean_ocr_text(text, preserve_structure=True)
+    else:
+        return TextCleaner.clean_pdf_text(text)
 
 
 def _extract_text_standard(file_path: str) -> str:
@@ -369,6 +343,8 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
     Load PDF file with automatic OCR support.
     Returns list of Document objects (one per page/section).
     
+    CRITICAL: Preserves page-wise structure for proper source attribution.
+    
     This is the primary interface used by vector_store.py
     
     Args:
@@ -376,12 +352,20 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
         filename: Original filename (for metadata)
     
     Returns:
-        List of Document objects with metadata
+        List of Document objects with metadata:
+        - page: Page number (1-indexed)
+        - filename: Original filename
+        - source: "pdf" or "pdf_with_ocr"
+        - ocr_used: Boolean - whether OCR was used
+        - quality_score: Quality assessment of text
     """
     text = extract_text_with_ocr(file_path)
     
+    # Detect if OCR was used by checking extraction history
+    # (In production, you might track this separately)
+    ocr_used = detect_scanned_pdf(file_path)
+    
     # Split into logical sections (by page markers from OCR)
-    # Extract page numbers if present
     pages = []
     current_page = 1
     page_content_parts = []
@@ -390,10 +374,12 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
         if line.startswith('--- Page'):
             # New page marker detected
             if page_content_parts:
-                pages.append({
-                    'page': current_page,
-                    'content': '\n'.join(page_content_parts)
-                })
+                page_text = '\n'.join(page_content_parts).strip()
+                if page_text:
+                    pages.append({
+                        'page': current_page,
+                        'content': page_text
+                    })
             
             # Extract page number
             try:
@@ -407,24 +393,60 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
     
     # Don't forget last page
     if page_content_parts:
-        pages.append({
-            'page': current_page,
-            'content': '\n'.join(page_content_parts)
-        })
+        page_text = '\n'.join(page_content_parts).strip()
+        if page_text:
+            pages.append({
+                'page': current_page,
+                'content': page_text
+            })
     
-    # Create Document objects
+    # Create Document objects with comprehensive metadata
     documents = []
     for page_data in pages:
-        if page_data['content'].strip():
-            doc = Document(
-                page_content=page_data['content'],
-                metadata={
-                    "page": page_data['page'],
-                    "filename": filename,
-                    "source": "pdf_with_ocr"
-                }
-            )
-            documents.append(doc)
+        content = page_data['content'].strip()
+        if not content:
+            continue
+        
+        # Assess quality for this page
+        quality_metrics = assess_quality(content, source="ocr" if ocr_used else "pdf")
+        
+        doc = Document(
+            page_content=content,
+            metadata={
+                "page": page_data['page'],
+                "filename": filename,
+                "source": "pdf_with_ocr" if ocr_used else "pdf",
+                "ocr_used": ocr_used,
+                "quality_score": quality_metrics.get("quality", "unknown"),
+                "char_count": quality_metrics.get("char_count", 0),
+                "noise_indicators": quality_metrics.get("noise_indicators", []),
+            }
+        )
+        documents.append(doc)
+        
+        # Log quality assessment
+        logger.debug(
+            f"Page {page_data['page']} ({filename}): "
+            f"{quality_metrics.get('char_count', 0)} chars, "
+            f"quality={quality_metrics.get('quality')}"
+        )
     
-    logger.info(f"Created {len(documents)} documents from {filename}")
+    if not documents:
+        logger.warning(f"No content extracted from {filename}")
+        # Return a placeholder document to avoid downstream errors
+        documents = [Document(
+            page_content=f"[Unable to extract content from {filename}]",
+            metadata={
+                "page": 1,
+                "filename": filename,
+                "source": "error",
+                "ocr_used": False,
+                "quality_score": "failed",
+            }
+        )]
+    
+    logger.info(
+        f"✓ Created {len(documents)} documents from {filename} "
+        f"(OCR used: {ocr_used})"
+    )
     return documents

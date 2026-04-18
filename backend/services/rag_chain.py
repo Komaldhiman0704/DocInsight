@@ -42,9 +42,16 @@ Return ONLY the rephrased question, nothing else."""),
 QA_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """You are an expert AI analyst providing comprehensive, engaging answers based on PDF documents.
 
-CRITICAL INSTRUCTIONS:
+CRITICAL INSTRUCTIONS FOR SOURCE ATTRIBUTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ IMPORTANT: Source attribution is HANDLED SEPARATELY by the system
+✓ Focus on providing the best possible answer from the documents
+✓ Use the provided context from specified page numbers
+
+ANSWER GUIDELINES:
 - NEVER include "Sources:", "Page references:", citations, links, URLs, or any source attribution in your answer
-- NEVER mention page numbers, document names, or where information came from
+- NEVER mention page numbers, document names, or where information came from in the answer text
 - Provide ONLY the factual content and analysis
 - Format with headers, bullet points, or sections when appropriate
 - Include context and connections between ideas
@@ -52,7 +59,12 @@ CRITICAL INSTRUCTIONS:
 - Maintain a professional, informative tone
 - If information isn't in the documents, state clearly: "I couldn't find specific information about that in the uploaded documents."
 
-Context from documents:
+NOTE ON SOURCES:
+The system has already extracted and structured source information from the retrieved chunks.
+Your answer content will be paired with source citations automatically on the frontend.
+This ensures proper attribution of each claim to its source document and page number.
+
+Context from documents (with page references):
 {context}
 """),
     MessagesPlaceholder(variable_name="chat_history"),
@@ -83,11 +95,38 @@ Answer given: {answer}"""),
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def format_docs(docs: list[Document]) -> str:
+    """
+    Format documents for LLM context with clear source attribution.
+    
+    This context includes page numbers and filenames so:
+    1. LLM understands where each piece of information comes from
+    2. Sources are extractable for display (handled by extract_sources)
+    3. Traceability is maintained through the entire pipeline
+    
+    Args:
+        docs: Retrieved document chunks with metadata
+    
+    Returns:
+        Formatted context string suitable for LLM prompt
+    """
     parts = []
     for i, doc in enumerate(docs, 1):
         page = doc.metadata.get("page", "?")
         filename = doc.metadata.get("filename", "document")
-        parts.append(f"[Source {i} — {filename}, Page {page}]:\n{doc.page_content}")
+        chunk_id = doc.metadata.get("chunk_id", f"chunk_{i}")
+        ocr_note = ""
+        
+        # Add OCR quality note if available
+        if doc.metadata.get("ocr_used"):
+            quality = doc.metadata.get("quality_score", "good")
+            ocr_note = f" [OCR: {quality}]"
+        
+        # Format with prominent source markers
+        parts.append(
+            f"[Source {i} — {filename}, Page {page}]{ocr_note}:\n"
+            f"{doc.page_content}"
+        )
+    
     return "\n\n---\n\n".join(parts)
 
 def build_chat_history(history: list[dict]) -> list:
@@ -100,39 +139,86 @@ def build_chat_history(history: list[dict]) -> list:
     return messages
 
 def extract_sources(docs: list[Document]) -> list[dict]:
+    """
+    Extract source information from retrieved documents.
+    
+    CRITICAL FOR SOURCE ATTRIBUTION:
+    - Returns filename, page number, doc_id for frontend display
+    - Includes OCR confidence for uncertain sources
+    - Deduplicates by filename + page to avoid duplicates
+    - Extracts meaningful excerpt from chunk
+    
+    Args:
+        docs: Retrieved document chunks
+    
+    Returns:
+        List of dictionaries with source information:
+        {
+            "filename": str,
+            "page": int,
+            "doc_id": str,
+            "excerpt": str,
+            "ocr_used": bool,
+            "quality_score": str
+        }
+    """
     sources = []
     seen = set()
+    
     for doc in docs:
-        key = f"{doc.metadata.get('filename','?')}-p{doc.metadata.get('page','?')}"
+        # Create unique key to deduplicate (same file + same page = same source)
+        filename = doc.metadata.get("filename", "Unknown")
+        page = doc.metadata.get("page", 1)
+        key = f"{filename}-p{page}"
+        
         if key not in seen:
             seen.add(key)
+            
+            # Extract meaningful excerpt
             excerpt = doc.page_content[:300]
             if len(doc.page_content) > 300:
                 excerpt += "..."
-            sources.append({
-                "filename": doc.metadata.get("filename", "Unknown"),
-                "page": doc.metadata.get("page", 1),
+            
+            # Get quality metrics for OCR sources
+            source_dict = {
+                "filename": filename,
+                "page": page,
                 "doc_id": doc.metadata.get("doc_id", ""),
                 "excerpt": excerpt,
-            })
+            }
+            
+            # Add OCR information if available
+            if doc.metadata.get("ocr_used"):
+                source_dict["ocr_used"] = True
+                source_dict["quality_score"] = doc.metadata.get("quality_score", "medium")
+            
+            sources.append(source_dict)
+    
     return sources
 
 
-def calculate_confidence(similarity_scores: list[float]) -> dict:
+def calculate_confidence(similarity_scores: list[float], docs: list[Document] = None) -> dict:
     """
     Calculate confidence level from similarity scores with multi-factor analysis.
     
+    Accounts for:
+    1. Similarity scores (relevance of retrieved chunks)
+    2. Number of sources (more sources = more reliable)
+    3. OCR quality (OCR sources slightly lower confidence)
+    
     Args:
         similarity_scores: List of retrieval similarity scores (typically 0.0-1.0)
+        docs: Optional list of documents to check for OCR usage
         
     Returns:
-        dict with: confidence (str), relevance_score (float), source_count (int)
+        dict with: confidence (str), relevance_score (float), source_count (int), ocr_sources (bool)
     """
     if not similarity_scores:
         return {
             "confidence": "low",
             "relevance_score": 0.0,
             "source_count": 0,
+            "ocr_sources": False,
         }
     
     # Normalize scores to 0-1 range
@@ -141,18 +227,27 @@ def calculate_confidence(similarity_scores: list[float]) -> dict:
         normalized = max(0.0, min(1.0, score))
         normalized_scores.append(normalized)
     
-    # Calculate average relevance score
+    # Calculate average and peak relevance
     avg_score = sum(normalized_scores) / len(normalized_scores) if normalized_scores else 0.0
     max_score = max(normalized_scores) if normalized_scores else 0.0
     
+    # Check if any sources used OCR
+    ocr_used = False
+    if docs:
+        ocr_used = any(doc.metadata.get("ocr_used", False) for doc in docs)
+    
     # Multi-factor confidence calculation:
-    # 1. Average relevance of retrieved chunks
-    # 2. Peak relevance of best matching chunk  
-    # 3. Number of relevant sources (more sources = more reliable)
-    source_factor = min(1.0, len(normalized_scores) / 5.0)  # Bonus for multiple sources (max 5)
+    # 1. Average relevance of retrieved chunks (0.6 weight)
+    # 2. Peak relevance of best matching chunk (0.3 weight)
+    # 3. Number of relevant sources - bonus for multiple sources (0.1 weight)
+    source_factor = min(1.0, len(normalized_scores) / 5.0)  # Max bonus at 5+ sources
     
     # Composite confidence score
     composite_score = (avg_score * 0.6) + (max_score * 0.3) + (source_factor * 0.1)
+    
+    # Adjust for OCR sources (reduce confidence slightly if OCR was used)
+    if ocr_used:
+        composite_score *= 0.95  # 5% confidence penalty for OCR sources
     
     # Determine confidence level with smoother thresholds
     if composite_score >= 0.70:
@@ -166,6 +261,7 @@ def calculate_confidence(similarity_scores: list[float]) -> dict:
         "confidence": confidence,
         "relevance_score": round(avg_score, 2),
         "source_count": len(similarity_scores),
+        "ocr_sources": ocr_used,
     }
 
 
@@ -248,8 +344,8 @@ async def run_rag_chain(
         "context": context,
     })
 
-    # Step 4: Calculate confidence metrics
-    confidence_data = calculate_confidence(scores)
+    # Step 4: Calculate confidence metrics (accounting for OCR sources)
+    confidence_data = calculate_confidence(scores, docs)
 
     # Step 5: Generate follow-up suggestions
     suggestions = await generate_suggestions(question, answer)
@@ -261,6 +357,7 @@ async def run_rag_chain(
         "confidence": confidence_data["confidence"],
         "relevance_score": confidence_data["relevance_score"],
         "source_count": confidence_data["source_count"],
+        "ocr_sources": confidence_data.get("ocr_sources", False),
         "standalone_question": standalone_question,
     }
 
@@ -300,8 +397,8 @@ async def stream_rag_chain(
     context = format_docs(docs)
     sources = extract_sources(docs)
 
-    # Calculate confidence metrics
-    confidence_data = calculate_confidence(scores)
+    # Calculate confidence metrics (accounting for OCR sources)
+    confidence_data = calculate_confidence(scores, docs)
 
     # Yield sources with confidence metrics
     sources_payload = {
@@ -309,6 +406,7 @@ async def stream_rag_chain(
         "confidence": confidence_data["confidence"],
         "relevance_score": confidence_data["relevance_score"],
         "source_count": confidence_data["source_count"],
+        "ocr_sources": confidence_data.get("ocr_sources", False),
     }
     yield f"__SOURCES__{json.dumps(sources_payload)}\n"
 
