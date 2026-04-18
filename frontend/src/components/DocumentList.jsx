@@ -11,7 +11,14 @@ function formatBytes(bytes) {
 }
 
 function formatDate(iso) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  try {
+    const date = new Date(iso)
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'Just now'
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  } catch {
+    return 'Just now'
+  }
 }
 
 export default function DocumentList({ documents, selectedIds, onToggle, onDeleted }) {
@@ -81,7 +88,7 @@ export default function DocumentList({ documents, selectedIds, onToggle, onDelet
                 <span className="text-[10px] text-[var(--text-muted)]">{formatBytes(doc.file_size)}</span>
                 <span className="text-[var(--text-muted)] text-[10px]">·</span>
                 <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-0.5">
-                  <Hash size={9} />{doc.chunk_count} chunks
+                  <Hash size={9} />{doc.chunk_count} {doc.chunk_count === 1 ? 'chunk' : 'chunks'}
                 </span>
                 <span className="text-[var(--text-muted)] text-[10px]">·</span>
                 <span className="text-[10px] text-[var(--text-muted)]">{formatDate(doc.uploaded_at)}</span>
