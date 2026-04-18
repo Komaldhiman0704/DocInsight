@@ -7,18 +7,15 @@ import SuggestionsRow from './SuggestionsRow'
 import ConfidenceIndicator from './ConfidenceIndicator'
 import clsx from 'clsx'
 
-// Professional thinking indicator with slow, deliberate animation
+// Loading dots animation
 function ThinkingDots() {
   return (
-    <div className="flex items-center gap-1.5 py-2 px-1">
+    <div className="flex items-center gap-1 py-1 px-1">
       {[0, 1, 2].map(i => (
         <span
           key={i}
-          className="w-2.5 h-2.5 rounded-full bg-[var(--text-muted)] animate-pulse-dot"
-          style={{ 
-            animationDelay: `${i * 0.4}s`,
-            animation: `pulseDot 2s cubic-bezier(0.4, 0.0, 0.6, 1.0) infinite`
-          }}
+          className="w-2 h-2 rounded-full bg-[var(--text-muted)] animate-pulse-dot"
+          style={{ animationDelay: `${i * 0.2}s` }}
         />
       ))}
     </div>

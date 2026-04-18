@@ -22,13 +22,9 @@ export default function SourceCard({ sources, onViewPDF }) {
 
       {/* Source list */}
       {expanded && (
-        <div className="divide-y divide-[var(--border)] animate-expand-smooth">
+        <div className="divide-y divide-[var(--border)]">
           {sources.map((s, i) => (
-            <div 
-              key={i} 
-              className="p-3 bg-[var(--bg-primary)] animate-fade-in-delayed"
-              style={{ animationDelay: `${i * 0.25}s` }}
-            >
+            <div key={i} className="p-3 bg-[var(--bg-primary)] animate-fade-in">
               <div className="flex items-center gap-2 mb-1.5">
                 <FileText size={12} className="text-[var(--accent)] shrink-0" />
                 <span className="font-medium text-[var(--text-primary)] truncate">{s.filename}</span>

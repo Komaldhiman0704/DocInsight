@@ -113,8 +113,24 @@ body {
 /* PROFESSIONAL SOURCES CARD ANIMATIONS */
 /* ═══════════════════════════════════════════════════════════ */
 
-/* Fade in animation for source items - slow and deliberate */
+/* Fade in animation for source items */
 @keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Smooth slide up for messages */
+@keyframes slideUp {
   from {
     opacity: 0;
     transform: translateY(12px);
@@ -125,107 +141,18 @@ body {
   }
 }
 
-.animate-fade-in {
-  animation: fadeInUp 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-/* Professional deliberate slide up for messages */
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .animate-slide-up {
-  animation: slideUp 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUp 0.3s ease-out;
 }
 
-/* Staggered animation for messages - generous delays */
-.animate-slide-up:nth-child(1) { animation-delay: 0s; }
-.animate-slide-up:nth-child(2) { animation-delay: 0.15s; }
-.animate-slide-up:nth-child(3) { animation-delay: 0.3s; }
-.animate-slide-up:nth-child(4) { animation-delay: 0.45s; }
-.animate-slide-up:nth-child(5) { animation-delay: 0.6s; }
-
-/* Professional fade in for content */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-fade-in-smooth {
-  animation: fadeIn 0.5s ease-out;
-}
-
-/* Smooth expand animation for sections */
-@keyframes expandDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-  }
-  to {
-    opacity: 1;
-    max-height: 1000px;
-    overflow: visible;
-  }
-}
-
-.animate-expand {
-  animation: expandDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Pulse dot animation - slow and deliberate */
+/* Pulse dot animation */
 @keyframes pulseDot {
-  0%, 100% { opacity: 0.3; }
+  0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
 
 .animate-pulse-dot {
-  animation: pulseDot 2s ease-in-out infinite;
-}
-
-/* Smooth expand for sources card - deliberate reveal */
-@keyframes expandSmooth {
-  from {
-    opacity: 0;
-    transform: scaleY(0.92);
-    transform-origin: top;
-  }
-  to {
-    opacity: 1;
-    transform: scaleY(1);
-    transform-origin: top;
-  }
-}
-
-.animate-expand-smooth {
-  animation: expandSmooth 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Delayed fade in for staggered effects - generous timing */
-@keyframes fadeInDelayed {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in-delayed {
-  animation: fadeInDelayed 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: pulseDot 1.4s ease-in-out infinite;
 }
 
 /* Shimmer loading animation */

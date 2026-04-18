@@ -55,17 +55,11 @@ export default function App() {
     loadSessions()
   }, [])
 
-  // Professional smooth scrolling with generous delays for deliberate pacing
   useEffect(() => {
     const scrollToBottom = () => {
-      // Wait longer for animations to fully display before scrolling
-      // Creates smooth, unhurried experience
       const timeout = setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'end' 
-        })
-      }, 300) // Increased from 100ms for slower, more deliberate feel
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+      }, 50)
       return () => clearTimeout(timeout)
     }
     
