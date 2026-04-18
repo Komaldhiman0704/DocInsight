@@ -5,11 +5,12 @@ Automatically detects and processes scanned PDFs using OCR.
 
 Features:
 - Standard text extraction for native PDFs
-- OCR fallback for scanned PDFs (Tesseract)
+- Graceful OCR fallback for scanned PDFs (with dependency detection)
 - Automatic detection based on extraction quality
 - Text normalization and cleanup
 - Optional caching to prevent redundant OCR
 - Comprehensive logging and error handling
+- Never crashes due to missing OCR dependencies
 """
 
 import os
@@ -22,6 +23,7 @@ import re
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from config import get_settings
+from services.ocr_utils import safe_ocr_extract, OCRConfig
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -161,68 +163,6 @@ def _normalize_text(text: str, source: str = "standard") -> str:
     return text.strip()
 
 
-def _extract_text_with_tesseract(file_path: str) -> str:
-    """
-    Extract text from PDF using Tesseract OCR.
-    Converts PDF pages to images and performs OCR.
-    
-    Args:
-        file_path: Path to PDF file
-    
-    Returns:
-        Extracted text from all pages
-    
-    Raises:
-        ImportError: If pdf2image or pytesseract not installed
-        RuntimeError: If Tesseract binary not found
-    """
-    try:
-        import pytesseract
-        from pdf2image import convert_from_path
-    except ImportError as e:
-        raise ImportError(
-            "OCR dependencies not installed. "
-            "Run: pip install pytesseract pdf2image pillow"
-        ) from e
-    
-    logger.info(f"Starting OCR extraction from {file_path}")
-    
-    try:
-        # Convert PDF pages to images
-        logger.debug("Converting PDF to images...")
-        images = convert_from_path(file_path, dpi=200)
-        
-        logger.info(f"Converting {len(images)} pages for OCR")
-        
-        # Extract text from each page
-        all_text = []
-        for page_num, image in enumerate(images, 1):
-            try:
-                logger.debug(f"OCR processing page {page_num}/{len(images)}")
-                page_text = pytesseract.image_to_string(image, lang='eng')
-                
-                if page_text.strip():
-                    all_text.append(f"--- Page {page_num} ---\n{page_text}")
-            except Exception as e:
-                logger.error(f"OCR failed on page {page_num}: {e}")
-                continue
-        
-        text = "\n\n".join(all_text)
-        logger.info(f"OCR extraction complete: {len(text)} characters from {len(images)} pages")
-        return text
-        
-    except FileNotFoundError as e:
-        raise RuntimeError(
-            "Tesseract binary not found. Install via: "
-            "Windows: scoop install tesseract, "
-            "macOS: brew install tesseract, "
-            "Linux: apt-get install tesseract-ocr"
-        ) from e
-    except Exception as e:
-        logger.error(f"Tesseract OCR extraction failed: {e}", exc_info=True)
-        raise
-
-
 def _extract_text_standard(file_path: str) -> str:
     """
     Extract text from PDF using standard text extraction (PyPDF).
@@ -307,8 +247,11 @@ def extract_text_with_ocr(file_path: str, use_cache: bool = True) -> str:
     
     Strategy:
     1. Attempt standard text extraction
-    2. If quality insufficient, trigger OCR
-    3. Normalize and return result
+    2. If quality insufficient, trigger OCR (if available)
+    3. If OCR not available, return standard text with warning
+    4. Normalize and return result
+    
+    CRITICAL: Never crashes the system. Always returns text or warning.
     
     Caching:
     - Caches OCR results using file hash
@@ -320,11 +263,10 @@ def extract_text_with_ocr(file_path: str, use_cache: bool = True) -> str:
         use_cache: Whether to use OCR caching (default: True)
     
     Returns:
-        Extracted text ready for chunking
+        Extracted text ready for chunking (never None or empty)
     
     Raises:
         FileNotFoundError: If file doesn't exist
-        Exception: If extraction fails completely
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -338,7 +280,7 @@ def extract_text_with_ocr(file_path: str, use_cache: bool = True) -> str:
         cache_path = os.path.join(CACHE_DIR, f"{_get_file_hash(file_path)}.txt")
         
         if _is_cache_valid(file_path, cache_path):
-            logger.info(f"Using cached OCR result for {filename}")
+            logger.info(f"✓ Using cached result for {filename}")
             cached_text = _load_cache(cache_path)
             if cached_text:
                 return cached_text
@@ -359,31 +301,66 @@ def extract_text_with_ocr(file_path: str, use_cache: bool = True) -> str:
             logger.info(f"✓ Standard extraction successful for {filename}")
             return text
         
-        logger.info(f"Standard extraction insufficient - Triggering OCR for {filename}")
+        logger.info(f"Standard extraction insufficient - Attempting OCR for {filename}")
     
     except Exception as e:
         logger.warning(f"Standard extraction error: {e} - Attempting OCR")
     
-    # OCR Fallback
-    try:
-        text = _extract_text_with_tesseract(file_path)
-        text = _normalize_text(text, source="ocr")
+    # OCR Fallback (SAFE - never crashes if OCR not available)
+    if OCRConfig.is_ocr_available():
+        try:
+            ocr_text = safe_ocr_extract(file_path)
+            
+            if ocr_text:
+                text = _normalize_text(ocr_text, source="ocr")
+                
+                # Save to cache
+                if use_cache:
+                    _ensure_cache_dir()
+                    cache_path = os.path.join(CACHE_DIR, f"{_get_file_hash(file_path)}.txt")
+                    _save_cache(file_path, cache_path, text)
+                
+                logger.info(f"✓ OCR extraction successful for {filename}")
+                return text
         
-        # Save to cache
-        if use_cache:
-            _ensure_cache_dir()
-            cache_path = os.path.join(CACHE_DIR, f"{_get_file_hash(file_path)}.txt")
-            _save_cache(file_path, cache_path, text)
-        
-        logger.info(f"✓ OCR extraction successful for {filename}")
-        return text
+        except Exception as e:
+            logger.error(f"OCR extraction failed: {e}", exc_info=True)
+            # Fall through to fallback below
     
-    except Exception as e:
-        logger.error(f"OCR extraction failed: {e}", exc_info=True)
-        raise RuntimeError(
-            f"Failed to extract text from {filename} using both standard "
-            f"extraction and OCR. Error: {str(e)}"
+    else:
+        logger.warning(
+            f"OCR not available for {filename}. "
+            f"Configure OCR to improve scanned PDF support: "
+            f"{OCRConfig.get_installation_guide()}"
         )
+    
+    # Fallback: Return best-effort text or warning message
+    try:
+        text = _extract_text_standard(file_path)
+        if text.strip():
+            logger.warning(
+                f"⚠ Using partial standard extraction for {filename} "
+                f"(OCR not available for scanned PDFs)"
+            )
+            return text
+    except Exception:
+        pass
+    
+    # Last resort: Return graceful message instead of crashing
+    warning_text = (
+        f"⚠ Unable to extract text from {filename}\n\n"
+        f"Standard extraction: Insufficient\n"
+        f"OCR extraction: Not available\n\n"
+        f"To enable OCR for scanned PDFs:\n"
+        f"{OCRConfig.get_installation_guide()}"
+    )
+    
+    logger.error(
+        f"Could not extract text from {filename} - "
+        f"system will continue with warning text"
+    )
+    
+    return warning_text
 
 
 # Backward compatibility wrapper
