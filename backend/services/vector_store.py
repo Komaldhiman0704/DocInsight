@@ -2,6 +2,7 @@
 Vector Store Service
 Uses ChromaDB (local, free) + HuggingFace sentence-transformers (free, runs locally)
 No API keys needed for embeddings!
+Includes OCR support for scanned PDFs.
 """
 import os
 import chromadb
@@ -13,6 +14,9 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from config import get_settings
 import logging
+
+# Import OCR-enabled loader
+from services.document_loader import load_pdf_with_ocr
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -115,22 +119,29 @@ def load_txt_file(file_path: str, filename: str) -> list[Document]:
 def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
     """
     Generic document ingestion function that detects file type and processes accordingly.
-    Supports: PDF, DOCX, TXT
+    Supports: PDF (with OCR support), DOCX, TXT
+    
+    For PDFs:
+    - Attempts standard text extraction first
+    - Falls back to OCR for scanned PDFs
+    - Caches OCR results to avoid redundant processing
+    
     Returns number of chunks stored.
     """
     file_ext = os.path.splitext(filename)[1].lower()
     
     try:
         if file_ext == '.pdf':
-            # Load PDF
-            loader = PyPDFLoader(file_path)
-            pages = loader.load()
+            # Load PDF with OCR support
+            logger.info(f"Loading PDF with OCR support: {filename}")
+            pages = load_pdf_with_ocr(file_path, filename)
             
             # Add metadata
             for i, page in enumerate(pages):
                 page.metadata["doc_id"] = doc_id
                 page.metadata["filename"] = filename
-                page.metadata["page"] = i + 1
+                if "page" not in page.metadata:
+                    page.metadata["page"] = i + 1
         
         elif file_ext == '.docx':
             # Load DOCX
@@ -146,6 +157,10 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
         
         else:
             raise ValueError(f"Unsupported file format: {file_ext}")
+        
+        # Validate extraction
+        if not pages:
+            raise ValueError(f"No content could be extracted from {filename}")
         
         # Split into chunks
         splitter = RecursiveCharacterTextSplitter(

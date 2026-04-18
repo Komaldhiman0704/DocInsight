@@ -21,9 +21,14 @@ chromadb==0.5.15
 sentence-transformers==3.2.1
 torch==2.6.0
 
-# Document Loading
+# Document Loading & Processing
 pypdf==5.1.0
 python-docx==1.2.0
+
+# OCR Support (for scanned PDFs)
+pytesseract==0.3.13
+pdf2image==1.17.1
+Pillow==11.0.0
 
 # PDF Generation
 reportlab==4.0.9
