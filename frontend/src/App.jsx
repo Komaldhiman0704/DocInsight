@@ -13,6 +13,7 @@ import DocumentSummaryCard from './components/DocumentSummaryCard'
 import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
 import PDFViewer from './components/PDFViewer'
+import PDFViewerPanel from './components/PDFViewerPanel'
 import Logo from './components/Logo'
 
 const SUGGESTIONS = [
@@ -43,6 +44,11 @@ export default function App() {
 
   const [pdfOpen, setPdfOpen] = useState(false)
   const [pdfDoc, setPdfDoc] = useState(null)
+  
+  // New: PDF Viewer Panel with page jump support
+  const [pdfPanelOpen, setPdfPanelOpen] = useState(false)
+  const [pdfPanelDoc, setPdfPanelDoc] = useState(null)
+  const [pdfTargetPage, setPdfTargetPage] = useState(1)
 
   useEffect(() => {
     loadDocuments()
@@ -211,11 +217,24 @@ export default function App() {
   }
 
   function handleOpenPDF(doc) {
+    // New: Use PDFViewerPanel for page jump support
+    // doc can be: { id, filename } or { id, filename, page }
+    const targetPage = doc.page || 1
+    
+    setPdfPanelDoc({
+      filename: doc.filename,
+      docPath: `http://localhost:8000/api/documents/${doc.id}/pdf`,
+      id: doc.id,
+    })
+    setPdfTargetPage(targetPage)
+    setPdfPanelOpen(true)
+    
+    // Legacy: Keep old PDFViewer working for backward compatibility
     setPdfDoc({
       filename: doc.filename,
       docPath: `http://localhost:8000/api/documents/${doc.id}/pdf`
     })
-    setPdfOpen(true)
+    // Don't open old viewer: setPdfOpen(true)
   }
 
   const handleSend = useCallback(async (question) => {
@@ -542,12 +561,22 @@ export default function App() {
         </div>
       </main>
 
-      {/* PDF Viewer Modal */}
+      {/* PDF Viewer Modal - Legacy (for backward compatibility) */}
       {pdfOpen && pdfDoc && (
         <PDFViewer
           filename={pdfDoc.filename}
           docPath={pdfDoc.docPath}
           onClose={() => setPdfOpen(false)}
+        />
+      )}
+
+      {/* PDF Viewer Panel - New (with page jump support) */}
+      {pdfPanelOpen && pdfPanelDoc && (
+        <PDFViewerPanel
+          filename={pdfPanelDoc.filename}
+          docPath={pdfPanelDoc.docPath}
+          targetPage={pdfTargetPage}
+          onClose={() => setPdfPanelOpen(false)}
         />
       )}
 

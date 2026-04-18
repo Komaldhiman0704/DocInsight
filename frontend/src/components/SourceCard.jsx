@@ -33,9 +33,13 @@ export default function SourceCard({ sources, onViewPDF }) {
                 </span>
                 {onViewPDF && (
                   <button
-                    onClick={() => onViewPDF({ id: s.doc_id, filename: s.filename })}
+                    onClick={() => onViewPDF({ 
+                      id: s.doc_id, 
+                      filename: s.filename,
+                      page: s.page  // Pass page number for navigation
+                    })}
                     className="ml-1 p-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
-                    title="View PDF"
+                    title="View PDF on page"
                   >
                     <Eye size={12} />
                   </button>

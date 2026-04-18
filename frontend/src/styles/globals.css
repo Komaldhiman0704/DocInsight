@@ -205,3 +205,53 @@ body {
 .source-item:hover {
   transform: translateX(2px);
 }
+
+/* ═══════════════════════════════════════════════════════════ */
+/* PDF VIEWER PANEL ANIMATIONS (Page Jump Feature) */
+/* ═══════════════════════════════════════════════════════════ */
+
+/* Slide in from right for PDF panel */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Page transition pulse (subtle highlight when page changes) */
+@keyframes pulseFade {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+.animate-pulse-fade {
+  animation: pulseFade 0.6s ease-in-out;
+}
+
+/* Smooth page canvas fade */
+@keyframes fadeInCanvas {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+.animate-canvas-fade {
+  animation: fadeInCanvas 0.2s ease-out;
+}
+
+/* Loading spinner with rotation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
