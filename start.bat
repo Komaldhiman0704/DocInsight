@@ -55,17 +55,20 @@ echo.
 REM ==================== PORT AVAILABILITY CHECK ====================
 echo  [STEP 2/5] Checking port availability...
 
-netstat -ano | find ":%BACKEND_PORT% " >nul 2>&1
+REM Check for LISTENING state only (not TIME_WAIT or other states)
+netstat -ano | findstr /R "LISTENING.*:%BACKEND_PORT% " >nul 2>&1
 if not errorlevel 1 (
-    echo  X ERROR: Port %BACKEND_PORT% in use
+    echo  X ERROR: Port %BACKEND_PORT% in use (active listener)
+    echo    Use 'stop.bat' to close existing services
     echo.
     pause
     exit /b 1
 )
 
-netstat -ano | find ":%FRONTEND_PORT% " >nul 2>&1
+netstat -ano | findstr /R "LISTENING.*:%FRONTEND_PORT% " >nul 2>&1
 if not errorlevel 1 (
-    echo  X ERROR: Port %FRONTEND_PORT% in use
+    echo  X ERROR: Port %FRONTEND_PORT% in use (active listener)
+    echo    Use 'stop.bat' to close existing services
     echo.
     pause
     exit /b 1
