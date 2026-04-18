@@ -45,34 +45,44 @@ const PDFViewerPanel = ({
 }) => {
   // State: Document and rendering
   const [pdfDoc, setPdfDoc] = useState(null)
-  const [currentPage, setCurrentPage] = useState(targetPage)
+  const [currentPage, setCurrentPage] = useState(1) // Start at page 1, not targetPage
   const [totalPages, setTotalPages] = useState(0)
   const [scale, setScale] = useState(100)
   const [loading, setLoading] = useState(true)
   const [rendering, setRendering] = useState(false)
   const [error, setError] = useState(null)
   
+  // ✅ FIX: Track PDF load state and pending page jump
+  // - pdfLoaded: True when PDF document is fully loaded AND ready to render
+  // - pendingPage: Page to jump to AFTER PDF is ready (prevents race condition)
+  const [pdfLoaded, setPdfLoaded] = useState(false)
+  const [pendingPage, setPendingPage] = useState(null)
+  
   // Refs: Canvas, PDF document, and page cache
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const pageRenderCacheRef = useRef(new Map()) // Cache: pageNum -> canvas ImageData
   const preloadTimeoutRef = useRef(null) // Timeout for background preloading
+  const jumpTimeoutRef = useRef(null) // Timeout for delayed page jump (CRITICAL)
   
   // Track document ID to enable cache reuse
   const docIdRef = useRef(docPath)
 
   // ──────────────────────────────────────────────────────────────────
   // ✅ OPTIMIZATION 1: Load PDF with caching strategy
+  // ✅ FIX: Separate PDF loading from page jumping (prevents race condition)
   // - Check cache first (INSTANT if cached)
   // - Fetch only if not cached
   // - Store in global cache for reuse
-  // - Jump to target page immediately
+  // - Store targetPage in pendingPage state (jump happens AFTER PDF ready)
   // ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const loadPDF = async () => {
       try {
         setLoading(true)
         setError(null)
+        setPdfLoaded(false) // Reset PDF ready state
+        setPendingPage(null) // Clear any pending page jump
         
         // Check if PDF already cached
         if (pdfCache.has(docPath)) {
@@ -80,12 +90,16 @@ const PDFViewerPanel = ({
           setPdfDoc(cachedPdf)
           setTotalPages(cachedPdf.numPages)
           
-          // Jump to target page immediately
+          // ✅ FIX: Store targetPage in pending, don't set currentPage yet
+          // The actual jump happens in a separate useEffect after PDF is ready
           if (targetPage > 0 && targetPage <= cachedPdf.numPages) {
-            setCurrentPage(targetPage)
+            setPendingPage(targetPage)
           } else {
-            setCurrentPage(1)
+            setPendingPage(1)
           }
+          
+          // ✅ FIX: Mark PDF as loaded (triggers pending page jump in next effect)
+          setPdfLoaded(true)
           
           console.log(`[PDF Cache] REUSED: ${filename}`)
           setLoading(false)
@@ -109,18 +123,22 @@ const PDFViewerPanel = ({
         setPdfDoc(pdf)
         setTotalPages(pdf.numPages)
         
-        // Jump to target page if specified
+        // ✅ FIX: Store targetPage in pending, don't set currentPage yet
         if (targetPage > 0 && targetPage <= pdf.numPages) {
-          setCurrentPage(targetPage)
+          setPendingPage(targetPage)
         } else {
-          setCurrentPage(1)
+          setPendingPage(1)
         }
+        
+        // ✅ FIX: Mark PDF as loaded (triggers pending page jump in next effect)
+        setPdfLoaded(true)
         
         console.log(`[PDF Cache] STORED: ${filename} (${pdf.numPages} pages)`)
       } catch (err) {
         console.error('PDF load error:', err)
         setError(err.message || 'Failed to load PDF')
         setPdfDoc(null)
+        setPdfLoaded(false)
       } finally {
         setLoading(false)
       }
@@ -130,7 +148,39 @@ const PDFViewerPanel = ({
   }, [docPath, targetPage, filename])
 
   // ──────────────────────────────────────────────────────────────────
-  // ✅ OPTIMIZATION 2: Render page with canvas caching
+  // ✅ CRITICAL FIX: Handle pending page jump AFTER PDF is fully loaded
+  // - Waits for pdfLoaded to be true (ensures PDF document is ready)
+  // - Checks canvas is available (ensures DOM is painted)
+  // - Adds small delay (ensures rendering is ready)
+  // - Performs page jump exactly once
+  // - Prevents double-click requirement
+  // ──────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!pdfLoaded || !pendingPage || !canvasRef.current) {
+      return // Not ready yet
+    }
+
+    // Clear any existing timeout
+    if (jumpTimeoutRef.current) {
+      clearTimeout(jumpTimeoutRef.current)
+    }
+
+    // ✅ CRITICAL: Add delay to ensure DOM is fully painted and rendering is ready
+    // This prevents the race condition where jump happens before canvas is ready
+    jumpTimeoutRef.current = setTimeout(() => {
+      console.log(`[Page Jump] Jumping to pending page ${pendingPage}`)
+      setCurrentPage(pendingPage)
+      setPendingPage(null) // Clear pending page (jump happened)
+    }, 150) // 150ms delay ensures DOM is painted
+
+    return () => {
+      if (jumpTimeoutRef.current) {
+        clearTimeout(jumpTimeoutRef.current)
+      }
+    }
+  }, [pdfLoaded, pendingPage])
+
+  // ──────────────────────────────────────────────────────────────────
   // - Check cache first (INSTANT if cached)
   // - Only render if not cached
   // - Store rendered canvas in cache
