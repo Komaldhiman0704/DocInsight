@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { X, ChevronUp, ChevronDown, ZoomIn, ZoomOut, Loader, AlertCircle, File } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.js?url'
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import clsx from 'clsx'
 
 // Configure PDF.js worker to use local file from node_modules
