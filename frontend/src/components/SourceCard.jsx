@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FileText, BookOpen, ChevronDown, ChevronUp, Eye, AlertCircle } from 'lucide-react'
+import { FileText, BookOpen, ChevronDown, ChevronUp, Eye } from 'lucide-react'
 import clsx from 'clsx'
 
 export default function SourceCard({ sources, onViewPDF }) {
@@ -32,14 +32,6 @@ export default function SourceCard({ sources, onViewPDF }) {
                   p.{s.page}
                 </span>
                 
-                {/* OCR Badge */}
-                {s.ocr_used && (
-                  <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-medium flex items-center gap-1">
-                    <AlertCircle size={9} />
-                    OCR
-                  </span>
-                )}
-                
                 {onViewPDF && (
                   <button
                     onClick={() => onViewPDF({ 
@@ -60,14 +52,6 @@ export default function SourceCard({ sources, onViewPDF }) {
               )}>
                 {s.excerpt}
               </p>
-              
-              {/* OCR Quality Note */}
-              {s.ocr_used && s.quality_score && (
-                <p className="mt-1.5 text-[10px] text-blue-600 dark:text-blue-400 flex items-start gap-1">
-                  <AlertCircle size={10} className="shrink-0 mt-0.5" />
-                  <span>Extracted via OCR - {s.quality_score === 'good' ? 'good quality' : s.quality_score === 'medium' ? 'moderate quality' : 'low quality'}</span>
-                </p>
-              )}
             </div>
           ))}
         </div>

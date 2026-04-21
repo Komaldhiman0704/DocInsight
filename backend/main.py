@@ -10,7 +10,6 @@ import logging
 
 from routers import chat, upload, documents, sessions
 from services.vector_store import shutdown_vectorstore
-from services.ocr_utils import OCRConfig
 
 # Configure logging
 logging.basicConfig(
@@ -50,7 +49,6 @@ async def startup_event():
     logger.info("=" * 80)
     logger.info("DocInsight Backend Starting")
     logger.info("=" * 80)
-    OCRConfig.log_setup_status()
 
 @app.on_event("shutdown")
 async def shutdown_event():

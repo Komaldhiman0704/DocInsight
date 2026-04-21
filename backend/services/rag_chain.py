@@ -1,12 +1,6 @@
 """
 RAG Chain Service - LangGraph-style agentic RAG
 Flow: User Query -> Rephrase (with history) -> Retrieve -> Generate Answer -> Return with sources
-
-✅ ENHANCEMENTS:
-- Query normalization for OCR text matching
-- Fallback retrieval (show best matches even if no perfect match)
-- Hybrid retrieval (vector + keyword search)
-- Improved confidence scoring
 """
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
@@ -14,57 +8,11 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 from typing import AsyncGenerator
 import logging
-import re
 
 from services.llm import get_llm
 from services.vector_store import get_retriever, get_docs_with_scores
-from config import get_settings
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
-
-# ── Query Normalization ────────────────────────────────────────────────────────
-
-def normalize_query(query: str) -> str:
-    """
-    ✅ NEW: Normalize query for better OCR text matching
-    
-    Fixes common OCR-like patterns in user queries:
-    - Lowercase (standardization)
-    - Fix OCR confusions: 0→o, 1→l, |→i
-    - Remove extra spaces
-    - Normalize punctuation
-    
-    Args:
-        query: Raw user query
-    
-    Returns:
-        Normalized query optimized for retrieval
-    """
-    if not query or settings.QUERY_NORMALIZE is False:
-        return query
-    
-    # Lowercase
-    query = query.lower()
-    
-    # Fix common OCR confusions (smart replacement)
-    # 0 → o (but not in numbers like "2023")
-    query = re.sub(r'\b0([a-z])', r'o\1', query)  # "0pen" → "open"
-    
-    # 1 → l (in words, not numbers)
-    query = re.sub(r'\b1([a-z])', r'l\1', query)  # "1ight" → "light"
-    
-    # | → i (pipe to letter i)
-    query = query.replace('|', 'i')
-    
-    # Multiple spaces → single space
-    query = re.sub(r'\s+', ' ', query).strip()
-    
-    # Remove extra punctuation
-    query = re.sub(r'([.!?]){2,}', r'\1', query)
-    
-    logger.debug(f"Query normalized for retrieval")
-    return query
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
@@ -172,17 +120,10 @@ def format_docs(docs: list[Document]) -> str:
     for i, doc in enumerate(docs, 1):
         page = doc.metadata.get("page", "?")
         filename = doc.metadata.get("filename", "document")
-        chunk_id = doc.metadata.get("chunk_id", f"chunk_{i}")
-        ocr_note = ""
-        
-        # Add OCR quality note if available
-        if doc.metadata.get("ocr_used"):
-            quality = doc.metadata.get("quality_score", "good")
-            ocr_note = f" [OCR: {quality}]"
         
         # Format with prominent source markers
         parts.append(
-            f"[Source {i} — {filename}, Page {page}]{ocr_note}:\n"
+            f"[Source {i} — {filename}, Page {page}]:\n"
             f"{doc.page_content}"
         )
     
@@ -201,11 +142,7 @@ def extract_sources(docs: list[Document]) -> list[dict]:
     """
     Extract source information from retrieved documents.
     
-    CRITICAL FOR SOURCE ATTRIBUTION:
-    - Returns filename, page number, doc_id for frontend display
-    - Includes OCR confidence for uncertain sources
-    - Deduplicates by filename + page to avoid duplicates
-    - Extracts meaningful excerpt from chunk
+    Returns filename, page number, and excerpt for frontend display.
     
     Args:
         docs: Retrieved document chunks
@@ -217,14 +154,12 @@ def extract_sources(docs: list[Document]) -> list[dict]:
             "page": int,
             "doc_id": str,
             "excerpt": str,
-            "ocr_used": bool,
-            "quality_score": str
         }
     """
     sources = []
     seen = set()
     
-    # DEFENSIVE: Check for empty docs list
+    # Check for empty docs list
     if not docs or len(docs) == 0:
         logger.debug("extract_sources called with empty docs list")
         return sources
@@ -243,18 +178,12 @@ def extract_sources(docs: list[Document]) -> list[dict]:
             if len(doc.page_content) > 300:
                 excerpt += "..."
             
-            # Get quality metrics for OCR sources
             source_dict = {
                 "filename": filename,
                 "page": page,
                 "doc_id": doc.metadata.get("doc_id", ""),
                 "excerpt": excerpt,
             }
-            
-            # Add OCR information if available
-            if doc.metadata.get("ocr_used"):
-                source_dict["ocr_used"] = True
-                source_dict["quality_score"] = doc.metadata.get("quality_score", "medium")
             
             sources.append(source_dict)
     
@@ -264,26 +193,20 @@ def extract_sources(docs: list[Document]) -> list[dict]:
 
 def calculate_confidence(similarity_scores: list[float], docs: list[Document] = None) -> dict:
     """
-    Calculate confidence level from similarity scores with multi-factor analysis.
+    Calculate confidence level from similarity scores.
     
     Accounts for:
     1. Similarity scores (relevance of retrieved chunks)
     2. Number of sources (more sources = more reliable)
-    3. OCR quality (OCR sources slightly lower confidence)
-    
-    Args:
-        similarity_scores: List of retrieval similarity scores (typically 0.0-1.0)
-        docs: Optional list of documents to check for OCR usage
         
     Returns:
-        dict with: confidence (str), relevance_score (float), source_count (int), ocr_sources (bool)
+        dict with: confidence (str), relevance_score (float), source_count (int)
     """
     if not similarity_scores:
         return {
             "confidence": "low",
             "relevance_score": 0.0,
             "source_count": 0,
-            "ocr_sources": False,
         }
     
     # Normalize scores to 0-1 range
@@ -296,11 +219,6 @@ def calculate_confidence(similarity_scores: list[float], docs: list[Document] = 
     avg_score = sum(normalized_scores) / len(normalized_scores) if normalized_scores else 0.0
     max_score = max(normalized_scores) if normalized_scores else 0.0
     
-    # Check if any sources used OCR
-    ocr_used = False
-    if docs:
-        ocr_used = any(doc.metadata.get("ocr_used", False) for doc in docs)
-    
     # Multi-factor confidence calculation:
     # 1. Average relevance of retrieved chunks (0.6 weight)
     # 2. Peak relevance of best matching chunk (0.3 weight)
@@ -309,10 +227,6 @@ def calculate_confidence(similarity_scores: list[float], docs: list[Document] = 
     
     # Composite confidence score
     composite_score = (avg_score * 0.6) + (max_score * 0.3) + (source_factor * 0.1)
-    
-    # Adjust for OCR sources (reduce confidence slightly if OCR was used)
-    if ocr_used:
-        composite_score *= 0.95  # 5% confidence penalty for OCR sources
     
     # Determine confidence level with smoother thresholds
     if composite_score >= 0.70:
@@ -326,7 +240,6 @@ def calculate_confidence(similarity_scores: list[float], docs: list[Document] = 
         "confidence": confidence,
         "relevance_score": round(avg_score, 2),
         "source_count": len(similarity_scores),
-        "ocr_sources": ocr_used,
     }
 
 
@@ -394,59 +307,25 @@ async def run_rag_chain(
         logger.info(f"Rephrased: '{question}' -> '{standalone_question}'")
     else:
         standalone_question = question
-    
-    # ✅ NEW: Normalize query for OCR text matching
-    normalized_question = normalize_query(standalone_question)
-    if normalized_question != standalone_question:
-        logger.info(f"Query normalized: '{standalone_question}' → '{normalized_question}'")
 
     # Step 2: Retrieve with scores - CRITICAL: Check for empty results
-    docs_with_scores = get_docs_with_scores(normalized_question, doc_ids)
+    docs_with_scores = get_docs_with_scores(standalone_question, doc_ids)
     
-    # ✅ IMPROVED: Fallback retrieval (never return empty)
+    # DEFENSIVE: No relevant documents found
     if not docs_with_scores or len(docs_with_scores) == 0:
         logger.warning(
-            f"No relevant documents retrieved for query: {normalized_question}"
+            f"No relevant documents retrieved for query: {standalone_question}"
         )
-        
-        # ✅ Fallback: Get top-2 closest matches anyway (if enabled)
-        if settings.ENABLE_FALLBACK_RETRIEVAL:
-            logger.info("Attempting fallback retrieval (top-2 closest matches)...")
-            # Re-retrieve with larger k and no filtering
-            from services.vector_store import get_vectorstore
-            vectorstore = get_vectorstore()
-            
-            fallback_results = vectorstore.similarity_search_with_score(
-                query=normalized_question,
-                k=2  # Get top 2 even if low similarity
-            )
-            
-            if fallback_results:
-                docs_with_scores = fallback_results
-                logger.info(f"✓ Fallback retrieved {len(fallback_results)} matches (lower confidence expected)")
-            else:
-                logger.error("Fallback retrieval also returned no results")
-                return {
-                    "answer": "⚠️ Unable to find relevant information. Please try rephrasing your question or upload additional documents that might contain the information you're looking for.",
-                    "sources": [],
-                    "suggestions": [],
-                    "confidence": "low",
-                    "relevance_score": 0.0,
-                    "source_count": 0,
-                    "ocr_sources": False,
-                    "standalone_question": normalized_question,
-                }
-        else:
-            return {
-                "answer": "⚠️ No relevant documents found. Try rephrasing or upload additional documents.",
-                "sources": [],
-                "suggestions": [],
-                "confidence": "low",
-                "relevance_score": 0.0,
-                "source_count": 0,
-                "ocr_sources": False,
-                "standalone_question": normalized_question,
-            }
+        return {
+            "answer": "⚠️ I couldn't find relevant information in the uploaded documents to answer your question. Try rephrasing your query or uploading additional documents.",
+            "sources": [],
+            "suggestions": [],
+            "confidence": "low",
+            "relevance_score": 0.0,
+            "source_count": 0,
+            "ocr_sources": False,
+            "standalone_question": standalone_question,
+        }
     
     docs = [doc for doc, score in docs_with_scores]
     scores = [score for doc, score in docs_with_scores]
@@ -462,7 +341,7 @@ async def run_rag_chain(
             "relevance_score": 0.0,
             "source_count": 0,
             "ocr_sources": False,
-            "standalone_question": normalized_question,
+            "standalone_question": standalone_question,
         }
     
     context = format_docs(docs)
@@ -470,7 +349,7 @@ async def run_rag_chain(
     # Step 3: Generate
     qa_chain = QA_PROMPT | llm | StrOutputParser()
     answer = await qa_chain.ainvoke({
-        "question": normalized_question,
+        "question": standalone_question,
         "chat_history": lc_history,
         "context": context,
     })

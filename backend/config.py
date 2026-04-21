@@ -32,29 +32,10 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 50
 
-    # RAG settings - OCR-optimized chunking
-    # Reduced chunk_size for better granularity in scanned PDFs
-    # Scanned PDFs avg 300 chars/page; native PDFs avg 2000 chars/page
-    CHUNK_SIZE: int = 400          # ✓ Down from 1000 - handles short OCR pages
-    CHUNK_OVERLAP: int = 60        # ✓ Down from 200 - maintains continuity
-    TOP_K_RESULTS: int = 5         # ✓ Up from 4 - better retrieval coverage
-    
-    # OCR Detection thresholds (scaled by document size)
-    OCR_MIN_CHAR_THRESHOLD: int = 100     # Minimum chars for successful extraction
-    OCR_MIN_VALID_RATIO: float = 0.5      # Minimum valid char ratio (50%)
-    OCR_QUALITY_MIN_RATIO: float = 0.6    # Threshold for "good" quality (60%)
-    
-    # Chunking fallback (force minimum chunks per page)
-    MIN_CHUNKS_PER_PAGE: int = 3          # ✓ New: Force at least 3 chunks if possible
-    MIN_CHUNK_SIZE: int = 200             # ✓ New: Minimum viable chunk (chars)
-    
-    # Query preprocessing
-    QUERY_NORMALIZE: bool = True           # ✓ New: Enable query preprocessing
-    QUERY_KEYWORDS_MAX: int = 5            # ✓ New: Extract top-5 keywords for hybrid search
-    
-    # Retrieval fallback
-    ENABLE_FALLBACK_RETRIEVAL: bool = True # ✓ New: Show top-2 when no results
-    HYBRID_RETRIEVAL_ENABLED: bool = True  # ✓ New: Combine vector + keyword search
+    # RAG settings
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+    TOP_K_RESULTS: int = 4
 
     class Config:
         env_file = ".env"

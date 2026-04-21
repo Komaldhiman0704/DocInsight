@@ -3,7 +3,6 @@ Documents Router
 GET    /api/documents       - List all documents
 DELETE /api/documents/{id}  - Delete a document
 GET    /api/documents/{id}/pdf - Get PDF file with CORS headers
-GET    /api/documents/ocr/status - Get OCR configuration status
 """
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -11,18 +10,8 @@ import os
 
 from services.document_store import get_all_documents, get_document, delete_document as store_delete
 from services.vector_store import delete_document as vector_delete
-from services.ocr_utils import get_ocr_status
 
 router = APIRouter()
-
-@router.get("/documents/ocr/status")
-def get_ocr_configuration():
-    """
-    Get current OCR configuration and availability status.
-    
-    Returns OCR capability details and setup instructions if needed.
-    """
-    return get_ocr_status()
 
 @router.get("/documents")
 def list_documents():
