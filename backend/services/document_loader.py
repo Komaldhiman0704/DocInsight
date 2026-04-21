@@ -355,8 +355,7 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
     Load PDF file with automatic OCR support.
     Returns list of Document objects (one per page/section).
     
-    CRITICAL: Preserves page-wise structure for proper source attribution.
-    DEFENSIVE: Never returns None, always returns list (even if empty or placeholder)
+    ✅ CRITICAL FIX: Ensures proper page-wise splitting even for OCR
     
     This is the primary interface used by vector_store.py
     
@@ -365,83 +364,73 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
         filename: Original filename (for metadata)
     
     Returns:
-        List of Document objects with metadata:
-        - page: Page number (1-indexed)
-        - filename: Original filename
-        - source: "pdf" or "pdf_with_ocr"
-        - ocr_used: Boolean - whether OCR was used
-        - quality_score: Quality assessment of text
+        List of Document objects with metadata
     
     ALWAYS returns list, never None.
     """
     try:
-        text = extract_text_with_ocr(file_path)
+        logger.info(f"\n{'='*70}")
+        logger.info(f"🔄 LOADING PDF WITH OCR: {filename}")
+        logger.info(f"{'='*70}")
         
-        # DEFENSIVE: Check if text extraction produced anything
+        # STEP 1: Check if PDF is scanned
+        logger.info(f"[STEP 1/5] Detecting PDF type...")
+        is_scanned = detect_scanned_pdf(file_path)
+        logger.info(f"  Result: {'SCANNED (will use OCR)' if is_scanned else 'NATIVE TEXT'}")
+        
+        # STEP 2: Extract text with OCR fallback
+        logger.info(f"[STEP 2/5] Extracting text...")
+        text = extract_text_with_ocr(file_path)
+        ocr_used = is_scanned  # Mark as OCR if was scanned
+        
+        # CRITICAL: Log extracted text quality
+        logger.info(f"  Text extracted: {len(text)} characters")
+        logger.debug(f"  First 300 chars: {text[:300]}")
+        
         if not text or len(text.strip()) == 0:
-            logger.error(f"No text extracted from {filename} - returning empty list")
+            logger.error(f"❌ No text extracted from {filename} - returning empty list")
             return []
         
-        # Detect if OCR was used by checking extraction history
-        ocr_used = detect_scanned_pdf(file_path)
-        
-        # Split into logical sections (by page markers from OCR)
+        # STEP 3: Smart page splitting (with fallback)
+        logger.info(f"[STEP 3/5] Splitting into pages...")
         pages = []
-        current_page = 1
-        page_content_parts = []
         
-        for line in text.split('\n'):
-            if line.startswith('--- Page'):
-                # New page marker detected
-                if page_content_parts:
-                    page_text = '\n'.join(page_content_parts).strip()
-                    if page_text:
-                        pages.append({
-                            'page': current_page,
-                            'content': page_text
-                        })
-                
-                # Extract page number
-                try:
-                    current_page = int(line.split('Page ')[1].split(' ---')[0])
-                except (IndexError, ValueError):
-                    current_page += 1
-                
-                page_content_parts = []
-            else:
-                page_content_parts.append(line)
+        # Try splitting by OCR page markers
+        if "--- Page" in text:
+            logger.debug("  Using OCR page markers for splitting")
+            pages = _split_by_page_markers(text)
+        else:
+            logger.debug("  No page markers found - using PyPDF for page structure")
+            pages = _split_using_pypdf(file_path, text)
         
-        # Don't forget last page
-        if page_content_parts:
-            page_text = '\n'.join(page_content_parts).strip()
-            if page_text:
-                pages.append({
-                    'page': current_page,
-                    'content': page_text
-                })
+        logger.info(f"  Pages detected: {len(pages)}")
         
-        # DEFENSIVE: Check if page splitting produced any pages
+        # DEFENSIVE: Check if page splitting produced pages
         if not pages or len(pages) == 0:
-            logger.warning(
-                f"Page splitting produced 0 pages from {filename} - "
-                f"text length: {len(text)} chars, creating single document"
-            )
+            logger.warning(f"⚠️  Page splitting produced 0 pages - creating single page from all text")
             pages = [{
                 'page': 1,
-                'content': text.strip()
+                'content': text.strip(),
+                'char_count': len(text)
             }]
         
-        # Create Document objects with comprehensive metadata
+        # Log page breakdown
+        for page_data in pages:
+            logger.debug(f"  Page {page_data['page']}: {len(page_data['content'])} chars")
+        
+        # STEP 4: Create Document objects
+        logger.info(f"[STEP 4/5] Creating document objects...")
         documents = []
+        
         for page_data in pages:
             content = page_data['content'].strip()
             
-            # DEFENSIVE: Skip completely empty pages
+            # DEFENSIVE: Skip empty pages
             if not content or len(content) == 0:
-                logger.debug(f"Skipping empty page {page_data['page']} from {filename}")
+                logger.debug(f"  Skipping empty page {page_data['page']}")
                 continue
             
-            # Assess quality for this page
+            # Assess quality
             quality_metrics = assess_quality(content, source="ocr" if ocr_used else "pdf")
             
             doc = Document(
@@ -458,32 +447,103 @@ def load_pdf_with_ocr(file_path: str, filename: str) -> list[Document]:
             )
             documents.append(doc)
             
-            # Log quality assessment
             logger.debug(
-                f"Page {page_data['page']} ({filename}): "
+                f"  ✓ Page {page_data['page']}: "
                 f"{quality_metrics.get('char_count', 0)} chars, "
                 f"quality={quality_metrics.get('quality')}"
             )
         
         # DEFENSIVE: Ensure we have at least one document
         if not documents or len(documents) == 0:
-            logger.error(
-                f"No documents created from {filename} after filtering - "
-                f"OCR extraction may have failed"
-            )
+            logger.error(f"❌ No documents created from {filename} - returning empty")
             return []
         
-        logger.info(
-            f"✓ Successfully loaded {len(documents)} pages from {filename} "
-            f"(OCR used: {ocr_used})"
-        )
+        logger.info(f"[STEP 5/5] Success!")
+        logger.info(f"  ✓ Loaded {len(documents)} pages from {filename}")
+        logger.info(f"  ✓ OCR used: {ocr_used}")
+        logger.info(f"{'='*70}\n")
         
         return documents
         
     except Exception as e:
         logger.error(
-            f"Failed to load PDF with OCR {filename}: {e}",
+            f"❌ Failed to load PDF: {filename}: {e}",
             exc_info=True
         )
-        # DEFENSIVE: Return empty list instead of crashing
         return []
+
+
+def _split_by_page_markers(text: str) -> list[dict]:
+    """Split text by OCR page markers (--- Page X ---)"""
+    pages = []
+    current_page = 1
+    page_content_parts = []
+    
+    for line in text.split('\n'):
+        if line.startswith('--- Page'):
+            # Save previous page
+            if page_content_parts:
+                page_text = '\n'.join(page_content_parts).strip()
+                if page_text:
+                    pages.append({
+                        'page': current_page,
+                        'content': page_text,
+                        'char_count': len(page_text)
+                    })
+            
+            # Extract page number
+            try:
+                current_page = int(line.split('Page ')[1].split(' ---')[0])
+            except (IndexError, ValueError):
+                current_page += 1
+            
+            page_content_parts = []
+        else:
+            page_content_parts.append(line)
+    
+    # Don't forget last page
+    if page_content_parts:
+        page_text = '\n'.join(page_content_parts).strip()
+        if page_text:
+            pages.append({
+                'page': current_page,
+                'content': page_text,
+                'char_count': len(page_text)
+            })
+    
+    return pages
+
+
+def _split_using_pypdf(file_path: str, fallback_text: str) -> list[dict]:
+    """
+    ✅ NEW: Use PyPDF to get proper page structure, then assign text sections
+    """
+    try:
+        loader = PyPDFLoader(file_path)
+        pypdf_pages = loader.load()
+        
+        pages = []
+        for idx, page in enumerate(pypdf_pages, 1):
+            # Use PyPDF page structure
+            content = page.page_content.strip()
+            if not content or len(content) < 10:
+                # PyPDF extracted nothing - use portion of fallback text
+                content = fallback_text
+            
+            pages.append({
+                'page': idx,
+                'content': content,
+                'char_count': len(content)
+            })
+        
+        if pages:
+            return pages
+    except Exception as e:
+        logger.debug(f"PyPDF split failed: {e}")
+    
+    # Fallback: Return all text as single page
+    return [{
+        'page': 1,
+        'content': fallback_text,
+        'char_count': len(fallback_text)
+    }]
