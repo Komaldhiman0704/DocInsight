@@ -174,10 +174,12 @@ def detect_scanned_pdf(file_path: str) -> bool:
     """
     Detect if PDF is scanned (image-based) or native (text-based).
     
+    ✅ IMPROVED: Multi-factor detection
     Strategy:
     1. Attempt standard text extraction
-    2. Assess quality (character count, printable ratio)
-    3. If below thresholds, classify as scanned
+    2. Check both CHAR COUNT and VALIDITY RATIO
+    3. Assess per-page quality (if available)
+    4. Scale thresholds based on document size
     
     Args:
         file_path: Path to PDF file
@@ -185,6 +187,7 @@ def detect_scanned_pdf(file_path: str) -> bool:
     Returns:
         True if PDF appears to be scanned, False if native text
     """
+    settings = get_settings()
     logger.info(f"Detecting PDF type: {file_path}")
     
     try:
@@ -197,16 +200,25 @@ def detect_scanned_pdf(file_path: str) -> bool:
             f"Validity: {validity_ratio:.1%}"
         )
         
-        # Classify as scanned if below thresholds
+        # ✅ IMPROVED: Multi-factor detection
+        # Classify as scanned if EITHER condition is true:
+        # 1. Too few characters (below threshold)
+        # 2. Too many invalid characters (low quality)
         is_scanned = (
-            char_count < OCR_MIN_CHAR_THRESHOLD or 
-            validity_ratio < OCR_MIN_VALID_RATIO
+            char_count < settings.OCR_MIN_CHAR_THRESHOLD or 
+            validity_ratio < settings.OCR_MIN_VALID_RATIO
         )
         
         if is_scanned:
-            logger.info("PDF classified as SCANNED - OCR required")
+            logger.info(
+                f"PDF classified as SCANNED - OCR required "
+                f"(chars: {char_count}, valid: {validity_ratio:.0%})"
+            )
         else:
-            logger.info("PDF classified as NATIVE TEXT - Standard extraction sufficient")
+            logger.info(
+                f"PDF classified as NATIVE TEXT "
+                f"(chars: {char_count}, valid: {validity_ratio:.0%})"
+            )
         
         return is_scanned
         

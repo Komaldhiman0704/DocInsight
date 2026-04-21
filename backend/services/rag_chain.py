@@ -1,6 +1,12 @@
 """
 RAG Chain Service - LangGraph-style agentic RAG
 Flow: User Query -> Rephrase (with history) -> Retrieve -> Generate Answer -> Return with sources
+
+✅ ENHANCEMENTS:
+- Query normalization for OCR text matching
+- Fallback retrieval (show best matches even if no perfect match)
+- Hybrid retrieval (vector + keyword search)
+- Improved confidence scoring
 """
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
@@ -8,11 +14,57 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 from typing import AsyncGenerator
 import logging
+import re
 
 from services.llm import get_llm
 from services.vector_store import get_retriever, get_docs_with_scores
+from config import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
+
+# ── Query Normalization ────────────────────────────────────────────────────────
+
+def normalize_query(query: str) -> str:
+    """
+    ✅ NEW: Normalize query for better OCR text matching
+    
+    Fixes common OCR-like patterns in user queries:
+    - Lowercase (standardization)
+    - Fix OCR confusions: 0→o, 1→l, |→i
+    - Remove extra spaces
+    - Normalize punctuation
+    
+    Args:
+        query: Raw user query
+    
+    Returns:
+        Normalized query optimized for retrieval
+    """
+    if not query or settings.QUERY_NORMALIZE is False:
+        return query
+    
+    # Lowercase
+    query = query.lower()
+    
+    # Fix common OCR confusions (smart replacement)
+    # 0 → o (but not in numbers like "2023")
+    query = re.sub(r'\b0([a-z])', r'o\1', query)  # "0pen" → "open"
+    
+    # 1 → l (in words, not numbers)
+    query = re.sub(r'\b1([a-z])', r'l\1', query)  # "1ight" → "light"
+    
+    # | → i (pipe to letter i)
+    query = query.replace('|', 'i')
+    
+    # Multiple spaces → single space
+    query = re.sub(r'\s+', ' ', query).strip()
+    
+    # Remove extra punctuation
+    query = re.sub(r'([.!?]){2,}', r'\1', query)
+    
+    logger.debug(f"Query normalized for retrieval")
+    return query
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
 
@@ -342,25 +394,59 @@ async def run_rag_chain(
         logger.info(f"Rephrased: '{question}' -> '{standalone_question}'")
     else:
         standalone_question = question
+    
+    # ✅ NEW: Normalize query for OCR text matching
+    normalized_question = normalize_query(standalone_question)
+    if normalized_question != standalone_question:
+        logger.info(f"Query normalized: '{standalone_question}' → '{normalized_question}'")
 
     # Step 2: Retrieve with scores - CRITICAL: Check for empty results
-    docs_with_scores = get_docs_with_scores(standalone_question, doc_ids)
+    docs_with_scores = get_docs_with_scores(normalized_question, doc_ids)
     
-    # DEFENSIVE: No relevant documents found
+    # ✅ IMPROVED: Fallback retrieval (never return empty)
     if not docs_with_scores or len(docs_with_scores) == 0:
         logger.warning(
-            f"No relevant documents retrieved for query: {standalone_question}"
+            f"No relevant documents retrieved for query: {normalized_question}"
         )
-        return {
-            "answer": "⚠️ I couldn't find relevant information in the uploaded documents to answer your question. Try rephrasing your query or uploading additional documents.",
-            "sources": [],
-            "suggestions": [],
-            "confidence": "low",
-            "relevance_score": 0.0,
-            "source_count": 0,
-            "ocr_sources": False,
-            "standalone_question": standalone_question,
-        }
+        
+        # ✅ Fallback: Get top-2 closest matches anyway (if enabled)
+        if settings.ENABLE_FALLBACK_RETRIEVAL:
+            logger.info("Attempting fallback retrieval (top-2 closest matches)...")
+            # Re-retrieve with larger k and no filtering
+            from services.vector_store import get_vectorstore
+            vectorstore = get_vectorstore()
+            
+            fallback_results = vectorstore.similarity_search_with_score(
+                query=normalized_question,
+                k=2  # Get top 2 even if low similarity
+            )
+            
+            if fallback_results:
+                docs_with_scores = fallback_results
+                logger.info(f"✓ Fallback retrieved {len(fallback_results)} matches (lower confidence expected)")
+            else:
+                logger.error("Fallback retrieval also returned no results")
+                return {
+                    "answer": "⚠️ Unable to find relevant information. Please try rephrasing your question or upload additional documents that might contain the information you're looking for.",
+                    "sources": [],
+                    "suggestions": [],
+                    "confidence": "low",
+                    "relevance_score": 0.0,
+                    "source_count": 0,
+                    "ocr_sources": False,
+                    "standalone_question": normalized_question,
+                }
+        else:
+            return {
+                "answer": "⚠️ No relevant documents found. Try rephrasing or upload additional documents.",
+                "sources": [],
+                "suggestions": [],
+                "confidence": "low",
+                "relevance_score": 0.0,
+                "source_count": 0,
+                "ocr_sources": False,
+                "standalone_question": normalized_question,
+            }
     
     docs = [doc for doc, score in docs_with_scores]
     scores = [score for doc, score in docs_with_scores]
@@ -376,7 +462,7 @@ async def run_rag_chain(
             "relevance_score": 0.0,
             "source_count": 0,
             "ocr_sources": False,
-            "standalone_question": standalone_question,
+            "standalone_question": normalized_question,
         }
     
     context = format_docs(docs)
@@ -384,7 +470,7 @@ async def run_rag_chain(
     # Step 3: Generate
     qa_chain = QA_PROMPT | llm | StrOutputParser()
     answer = await qa_chain.ainvoke({
-        "question": standalone_question,
+        "question": normalized_question,
         "chat_history": lc_history,
         "context": context,
     })

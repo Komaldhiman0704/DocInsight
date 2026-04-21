@@ -184,9 +184,17 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""],
         )
         
+        # ✅ NEW: Aggressive splitter for fallback (ensures multiple chunks)
+        aggressive_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=settings.MIN_CHUNK_SIZE,  # 200 chars minimum
+            chunk_overlap=30,
+            separators=["\n", ".", "!", "?", ",", " ", ""],
+        )
+        
         # DEFENSIVE: Track pages processed
         pages_with_content = 0
         pages_empty = 0
+        pages_with_fallback = 0
         
         for page_num, page_doc in enumerate(pages, 1):
             page_number = page_doc.metadata.get("page", page_num)
@@ -202,13 +210,24 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
             # Chunk this page individually
             page_chunks = splitter.split_documents([page_doc])
             
+            # ✅ NEW: If too few chunks, use aggressive splitter
+            if (not page_chunks or len(page_chunks) < settings.MIN_CHUNKS_PER_PAGE):
+                logger.info(
+                    f"Page {page_number}: {len(page_doc.page_content)} chars produced "
+                    f"{len(page_chunks) if page_chunks else 0} chunks (< {settings.MIN_CHUNKS_PER_PAGE} min) "
+                    f"→ Using aggressive splitter"
+                )
+                page_chunks = aggressive_splitter.split_documents([page_doc])
+                pages_with_fallback += 1
+            
             # DEFENSIVE: Check if chunking produced output
             if not page_chunks or len(page_chunks) == 0:
                 logger.warning(
                     f"Chunking produced no output for page {page_number} of {filename} "
-                    f"(content: {len(page_doc.page_content)} chars)"
+                    f"(content: {len(page_doc.page_content)} chars) - creating single chunk"
                 )
-                continue
+                # ✅ NEW: Last resort - create single chunk anyway
+                page_chunks = [page_doc]
             
             logger.debug(
                 f"Page {page_number}: {len(page_doc.page_content)} chars → "
@@ -227,11 +246,15 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
                 chunk.metadata["chunk_index"] = chunk_idx
                 chunk.metadata["chunks_on_page"] = len(page_chunks)
                 
+                # ✅ CRITICAL: Ensure ocr_used is preserved on all chunks
+                if "ocr_used" in page_doc.metadata:
+                    chunk.metadata["ocr_used"] = page_doc.metadata["ocr_used"]
+                else:
+                    chunk.metadata["ocr_used"] = False
+                
                 # Preserve quality metrics from loader if available
                 if "quality_score" in page_doc.metadata:
                     chunk.metadata["quality_score"] = page_doc.metadata["quality_score"]
-                if "ocr_used" in page_doc.metadata:
-                    chunk.metadata["ocr_used"] = page_doc.metadata["ocr_used"]
                 if "char_count" in page_doc.metadata:
                     chunk.metadata["page_char_count"] = page_doc.metadata["char_count"]
                 
@@ -240,7 +263,7 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
                 # Debug logging
                 logger.debug(
                     f"Created chunk: {chunk.metadata['chunk_id']} "
-                    f"({len(chunk.page_content)} chars) "
+                    f"({len(chunk.page_content)} chars, ocr: {chunk.metadata.get('ocr_used', False)}) "
                     f"on page {page_number}"
                 )
         
@@ -257,7 +280,7 @@ def ingest_document(file_path: str, doc_id: str, filename: str) -> int:
         logger.info(
             f"Split {filename} into {len(all_chunks)} chunks "
             f"across {pages_with_content} non-empty pages "
-            f"({pages_empty} empty pages skipped)"
+            f"({pages_with_fallback} used aggressive chunking, {pages_empty} empty pages skipped)"
         )
         
         # Store all chunks in ChromaDB
