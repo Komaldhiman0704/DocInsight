@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # File uploads
     UPLOAD_DIR: str = "./uploads"
-    MAX_FILE_SIZE_MB: int = 50
+    MAX_FILE_SIZE_MB: int = 100
 
     # RAG settings
     CHUNK_SIZE: int = 1000

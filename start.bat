@@ -116,7 +116,7 @@ if not exist "backend\.env" (
         echo # Get free GROQ_API_KEY: https://console.groq.com/keys
         echo GROQ_API_KEY=gsk_your_key_here
         echo GROQ_MODEL=llama-3.3-70b-versatile
-        echo MAX_UPLOAD_SIZE_MB=100
+        echo MAX_FILE_SIZE_MB=100
     ) > backend\.env
     echo  ⚠ Edit backend\.env and add GROQ_API_KEY
 )
