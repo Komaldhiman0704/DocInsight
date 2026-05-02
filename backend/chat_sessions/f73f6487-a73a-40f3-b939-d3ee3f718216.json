@@ -1,0 +1,90 @@
+{
+  "id": "f73f6487-a73a-40f3-b939-d3ee3f718216",
+  "doc_ids": [
+    "1e757392",
+    "c2295a86",
+    "eaedeccf"
+  ],
+  "title": "supervised learning",
+  "created_at": "2026-05-02T16:05:36.021954",
+  "messages": [
+    {
+      "role": "user",
+      "content": "supervised learning",
+      "timestamp": "2026-05-02T16:05:53.684898",
+      "sources": [],
+      "suggestions": []
+    },
+    {
+      "role": "assistant",
+      "content": "**Supervised Learning**\n\nSupervised learning involves training a machine learning model using labeled data, which means the data is already associated with the correct answer. \n\n**Key Characteristics:**\n\n* The training data includes the desired solutions, called labels.\n* The model learns by comparing its prediction with the actual label and adjusting itself to improve accuracy.\n* The goal is to learn a mapping between inputs and outputs, so the model can make predictions on new, unseen data.\n\n**Examples:**\n\n* Classification: spam filter, classification of ham or spam email\n* Regression: predicting a target numeric value, such as the price of a car, given a set of features (mileage, age, brand, etc.)\n\n**Key Steps:**\n\n1. **Input and Output Pairing**: Each input is paired with its correct label.\n2. **Training**: The model learns by comparing its prediction with the actual label and adjusting itself to improve accuracy.\n3. **Error Correction**: If the model predicts incorrectly, it adjusts its internal parameters to reduce the error.\n4. **Outcome**: The model eventually learns to map inputs to the correct outputs.\n\n**Analogy:**\n\nSupervised learning is like teaching a child to identify fruits. You show them pictures of various fruits, while telling them the correct name, and over time, the child learns to identify fruits correctly based on the examples given.",
+      "timestamp": "2026-05-02T16:05:53.697437",
+      "sources": [
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 12,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\nSupervised Learning\u2022Supervised learning involves training a machine learning model using labeled data, which means the data is already associated with the correct answer.\u2022Example: Consider teaching a child to identify fruits. You show them pictures of various fruits,..."
+        },
+        {
+          "filename": "Notes.pdf",
+          "page": 8,
+          "doc_id": "eaedeccf",
+          "excerpt": "supervised algorithms. \nEg:  \n \n \nSelf supervised learning \nSelf-supervised learning is a deep learning methodology where a model is pre-trained \nusing unlabelled data and the data labels are generated automatically,  which are further \nused in subsequent iterations as ground truths. The fundamental..."
+        },
+        {
+          "filename": "Notes.pdf",
+          "page": 4,
+          "doc_id": "eaedeccf",
+          "excerpt": "DEPT. OF AIML , JNNCE 4 \n \n \nMACHINE LEARNING STUDY MATERIAL, \n \n \nSupervised/Unsupervised Learning \nMachine Learning systems can be classified according to the amount and type of \nsupervision they get during training. There are four major categories: supervised \nlearning, unsupervised learning, sem..."
+        }
+      ],
+      "suggestions": [
+        "How does labeling affect accuracy?",
+        "What are common regression examples?",
+        "How does pairing impact outcomes?"
+      ],
+      "confidence": "high",
+      "relevance_score": 0.91
+    },
+    {
+      "role": "user",
+      "content": "clustering",
+      "timestamp": "2026-05-02T16:14:16.070340",
+      "sources": [],
+      "suggestions": []
+    },
+    {
+      "role": "assistant",
+      "content": "**Clustering in Machine Learning and Data Analysis**\n\nClustering is a type of unsupervised learning technique used in machine learning and data analysis. It involves grouping similar data points or objects into clusters based on their characteristics, features, or attributes.\n\n**Definition:**\n\nClustering is the process of sorting items into groups based on their similarities, forming distinct clusters where items within each cluster are more alike to each other than to those in other clusters.\n\n**Key Characteristics:**\n\n* Clustering is an unsupervised learning technique, meaning there is no prior knowledge of the class labels.\n* The goal is to identify patterns or structures in the data by grouping similar objects together.\n* Clustering is used to discover hidden relationships or groupings in the data.\n\n**How Clustering Works:**\n\n1. **Data Collection**: Gather data points or objects to be clustered.\n2. **Similarity Measurement**: Calculate the similarity between each pair of data points using a distance metric (e.g., Euclidean distance).\n3. **Cluster Formation**: Group data points into clusters based on their similarities.\n4. **Cluster Refinement**: Refine the clusters by adjusting the cluster boundaries or merging/splitting clusters.\n\n**Examples of Clustering Applications:**\n\n* Market segmentation: grouping customers based on their buying behavior or demographics.\n* Image compression: grouping similar pixels together to reduce image size.\n* Anomaly detection: identifying unusual patterns or outliers in the data.\n* Customer segmentation: grouping customers based on their behavior, preferences, or demographics.\n\n**Popular Clustering Algorithms:**\n\n* K-means clustering\n* Mean-Shift\n* DBSCAN (Density-Based Spatial Clustering of Applications with Noise)\n\n**Analogy:**\n\nClustering is like dividing socks by color when you don't remember all the colors you have. The clustering algorithm tries to find similar objects (socks) and merge them into a cluster (a group of socks of the same color).",
+      "timestamp": "2026-05-02T16:14:16.086527",
+      "sources": [
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 51,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\n\u2022Machine Learning Perspective: Clustering entails discovering patterns without explicit guidance, akin to exploring a forest without a map, where similarities guide the grouping process. It's a form of unsupervised learning, akin to solving a puzzle without knowledge..."
+        },
+        {
+          "filename": "Machine_Learning_For_EveryOne .pdf",
+          "page": 9,
+          "doc_id": "c2295a86",
+          "excerpt": "\"Divides objects based on unknown features. Machine chooses the best \nway\"\nNowadays used:\n\u2022For market segmentation (types of customers, loyalty)\n\u2022To merge close points on a map\n\u2022For image compression\n\u2022To analyze and label new data\n\u2022To detect abnormal behavior \nPopular algorithms: K-means_clustering,..."
+        },
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 53,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\nDifferentiating Clustering and ClassificationClusteringClassification\n1. Clustering analyzes data objects without known class label.In classification, data are grouped by analyzing the data objects whose class label is known.2. There is no prior knowledge of the attr..."
+        }
+      ],
+      "suggestions": [
+        "What are key clustering algorithms?",
+        "How is similarity measured?",
+        "What are common applications?"
+      ],
+      "confidence": "medium",
+      "relevance_score": 0.63
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Moon, Sun, Trash2, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { Moon, Sun, Trash2, ChevronLeft, ChevronRight, Download, ChevronDown } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
 
@@ -26,6 +26,8 @@ const SUGGESTIONS = [
 export default function App() {
   const [dark, setDark] = useDarkMode()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sessionsExpanded, setSessionsExpanded] = useState(true)
+  const [documentsExpanded, setDocumentsExpanded] = useState(true)
 
   const [documents, setDocuments] = useState([])
   const [selectedIds, setSelectedIds] = useState([])
@@ -401,58 +403,88 @@ export default function App() {
           </div>
 
           {/* Documents & Sessions */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-4">
-            {/* Sessions */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {/* 📄 Documents Section (Now First - Higher Priority) */}
             <div>
-              {sessionsLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="h-10 rounded-lg shimmer" />
-                  ))}
+              <button
+                onClick={() => setDocumentsExpanded(!documentsExpanded)}
+                className="w-full flex items-center justify-between px-1 mb-2 hover:opacity-80 transition-opacity"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Your Documents
+                </p>
+                <div className="flex items-center gap-1">
+                  {documents.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)] font-mono text-[10px]">
+                      {selectedIds.length}/{documents.length}
+                    </span>
+                  )}
+                  <ChevronDown 
+                    size={14} 
+                    className={`text-[var(--text-muted)] transition-transform duration-200 ${documentsExpanded ? '' : '-rotate-90'}`}
+                  />
                 </div>
-              ) : (
-                <SessionList
-                  sessions={sessions}
-                  onSessionSelect={handleSelectSession}
-                  onSessionCreate={handleNewSession}
-                  onSessionDelete={handleDeleteSession}
-                  onSessionRename={handleRenameSession}
-                  currentSessionId={currentSessionId}
-                />
+              </button>
+
+              {documentsExpanded && (
+                <>
+                  {docsLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="h-14 rounded-lg shimmer" />
+                      ))}
+                    </div>
+                  ) : (
+                    <DocumentList
+                      documents={documents}
+                      selectedIds={selectedIds}
+                      onToggle={toggleDocument}
+                      onDeleted={handleDocumentDeleted}
+                    />
+                  )}
+                </>
               )}
             </div>
 
             {/* Divider */}
-            {sessions.length > 0 && documents.length > 0 && (
-              <div className="h-px bg-[var(--border)] my-3" />
+            {documents.length > 0 && sessions.length > 0 && (
+              <div className="h-px bg-[var(--border)] my-2" />
             )}
 
-            {/* Documents */}
+            {/* 💬 Chat History Section (Now Second - Collapsible) */}
             <div>
-              <div className="flex items-center gap-2 mb-2 px-1">
+              <button
+                onClick={() => setSessionsExpanded(!sessionsExpanded)}
+                className="w-full flex items-center justify-between px-1 mb-2 hover:opacity-80 transition-opacity"
+              >
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Your Documents
+                  Chat History
                 </p>
-                {documents.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-muted)] font-mono text-[10px]">
-                    {selectedIds.length}/{documents.length}
-                  </span>
-                )}
-              </div>
-
-              {docsLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="h-14 rounded-lg shimmer" />
-                  ))}
-                </div>
-              ) : (
-                <DocumentList
-                  documents={documents}
-                  selectedIds={selectedIds}
-                  onToggle={toggleDocument}
-                  onDeleted={handleDocumentDeleted}
+                <ChevronDown 
+                  size={14} 
+                  className={`text-[var(--text-muted)] transition-transform duration-200 ${sessionsExpanded ? '' : '-rotate-90'}`}
                 />
+              </button>
+
+              {sessionsExpanded && (
+                <>
+                  {sessionsLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="h-10 rounded-lg shimmer" />
+                      ))}
+                    </div>
+                  ) : (
+                    <SessionList
+                      sessions={sessions}
+                      onSessionSelect={handleSelectSession}
+                      onSessionCreate={handleNewSession}
+                      onSessionDelete={handleDeleteSession}
+                      onSessionRename={handleRenameSession}
+                      currentSessionId={currentSessionId}
+                    />
+                  )}
+                </>
               )}
             </div>
           </div>
