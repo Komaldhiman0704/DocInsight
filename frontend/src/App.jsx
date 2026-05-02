@@ -312,7 +312,20 @@ export default function App() {
               ? { ...m, content: captured, status: 'streaming' }
               : m
           ))
-        } else if (chunk.type === 'suggestions') {
+        } 
+        // ✅ PHASE 3-4: Handle semantically enhanced sources (improve after answer generation)
+        else if (chunk.type === 'sources_enhanced') {
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId
+              ? { 
+                  ...m, 
+                  sources: chunk.sources,  // Replace with semantically ranked sources
+                  status: 'streaming'
+                }
+              : m
+          ))
+        } 
+        else if (chunk.type === 'suggestions') {
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId
               ? { ...m, suggestions: chunk.suggestions }

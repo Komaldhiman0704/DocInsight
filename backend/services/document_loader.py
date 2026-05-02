@@ -11,6 +11,7 @@ Features:
 
 import os
 import logging
+import re
 from typing import Optional, Tuple
 
 from langchain_community.document_loaders import PyPDFLoader
@@ -19,6 +20,38 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+def clean_text(text: str) -> str:
+    """
+    ✅ PART 3 IMPROVEMENT: Clean and normalize text for better quality
+    
+    Removes excessive whitespace, control characters, and artifacts.
+    Improves downstream chunking and embedding quality.
+    
+    Args:
+        text: Raw extracted text
+    
+    Returns:
+        Cleaned text suitable for processing
+    """
+    if not text:
+        return ""
+    
+    # Remove control characters except newlines and tabs
+    text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]', '', text)
+    
+    # Normalize whitespace (multiple spaces -> single space)
+    text = re.sub(r'[ \t]+', ' ', text)
+    
+    # Reduce excessive newlines (3+ -> 2)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Strip leading/trailing whitespace
+    text = text.strip()
+    
+    return text
+
 
 
 def load_pdf(file_path: str, filename: str) -> list[Document]:
@@ -43,9 +76,11 @@ def load_pdf(file_path: str, filename: str) -> list[Document]:
             logger.error(f"No pages extracted from {filename}")
             raise ValueError(f"No content could be extracted from {filename}")
         
-        # Add metadata to each page
+        # Add metadata to each page and apply text cleaning
         for page in pages:
             page.metadata["filename"] = filename
+            # ✅ PART 3: Clean extracted text
+            page.page_content = clean_text(page.page_content)
         
         logger.info(f"✓ Extracted {len(pages)} pages from {filename}")
         return pages
@@ -72,8 +107,10 @@ def load_docx_file(file_path: str, filename: str) -> list[Document]:
     documents = []
     for para_idx, para in enumerate(doc.paragraphs):
         if para.text.strip():  # Skip empty paragraphs
+            # ✅ PART 3: Clean extracted text
+            cleaned_text = clean_text(para.text)
             doc_obj = Document(
-                page_content=para.text,
+                page_content=cleaned_text,
                 metadata={"page": para_idx + 1, "filename": filename}
             )
             documents.append(doc_obj)
@@ -97,8 +134,10 @@ def load_txt_file(file_path: str, filename: str) -> list[Document]:
     
     for para_idx, para in enumerate(paragraphs):
         if para.strip():  # Skip empty sections
+            # ✅ PART 3: Clean extracted text
+            cleaned_text = clean_text(para.strip())
             doc_obj = Document(
-                page_content=para.strip(),
+                page_content=cleaned_text,
                 metadata={"page": para_idx + 1, "filename": filename}
             )
             documents.append(doc_obj)

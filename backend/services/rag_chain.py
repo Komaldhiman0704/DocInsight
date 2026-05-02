@@ -40,29 +40,33 @@ Return ONLY the rephrased question, nothing else."""),
 ])
 
 QA_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert AI analyst providing comprehensive, engaging answers based on PDF documents.
+    ("system", """You are an expert AI analyst providing accurate, evidence-based answers STRICTLY from the provided documents.
 
-CRITICAL INSTRUCTIONS FOR SOURCE ATTRIBUTION:
+🔒 CRITICAL RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✓ IMPORTANT: Source attribution is HANDLED SEPARATELY by the system
-✓ Focus on providing the best possible answer from the documents
-✓ Use the provided context from specified page numbers
+1. ONLY use information explicitly stated in the context below
+2. If the answer is NOT in the documents, respond EXACTLY:
+   "I couldn't find specific information about this in the uploaded documents."
+3. Do NOT use external knowledge, assumptions, or general information
+4. Do NOT fabricate page numbers, dates, names, or facts
+5. When uncertain, acknowledge it clearly
+6. Quote directly from documents when making factual claims
 
 ANSWER GUIDELINES:
-- NEVER include "Sources:", "Page references:", citations, links, URLs, or any source attribution in your answer
-- NEVER mention page numbers, document names, or where information came from in the answer text
-- Provide ONLY the factual content and analysis
-- Format with headers, bullet points, or sections when appropriate
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Source attribution is HANDLED SEPARATELY by the system
+✓ Focus on providing accurate answers from the documents
+✓ NEVER include "Sources:", "Page:", citations, or URLs in your answer
+✓ NEVER mention page numbers or document names in the answer text
+✓ Provide ONLY the factual content and analysis
+
+Format Guidelines:
+- Use headers, bullet points, or sections when appropriate
 - Include context and connections between ideas
 - Highlight key insights and important details
 - Maintain a professional, informative tone
-- If information isn't in the documents, state clearly: "I couldn't find specific information about that in the uploaded documents."
-
-NOTE ON SOURCES:
-The system has already extracted and structured source information from the retrieved chunks.
-Your answer content will be paired with source citations automatically on the frontend.
-This ensures proper attribution of each claim to its source document and page number.
 
 Context from documents (with page references):
 {context}
@@ -118,7 +122,12 @@ def format_docs(docs: list[Document]) -> str:
     
     parts = []
     for i, doc in enumerate(docs, 1):
-        page = doc.metadata.get("page", "?")
+        page_num = doc.metadata.get("page", 0)
+        # Convert 0-indexed page numbering to 1-indexed for display
+        if isinstance(page_num, int):
+            page = page_num + 1
+        else:
+            page = "?"
         filename = doc.metadata.get("filename", "document")
         
         # Format with prominent source markers
@@ -167,7 +176,9 @@ def extract_sources(docs: list[Document]) -> list[dict]:
     for doc in docs:
         # Create unique key to deduplicate (same file + same page = same source)
         filename = doc.metadata.get("filename", "Unknown")
-        page = doc.metadata.get("page", 1)
+        page_num = doc.metadata.get("page", 0)
+        # Convert 0-indexed page numbering to 1-indexed for display
+        page = page_num + 1 if isinstance(page_num, int) else 1
         key = f"{filename}-p{page}"
         
         if key not in seen:
@@ -191,7 +202,101 @@ def extract_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
-def calculate_confidence(similarity_scores: list[float], docs: list[Document] = None) -> dict:
+def filter_and_rank_sources(sources: list[dict], answer_text: str, question: str, top_k: int = 3) -> list[dict]:
+    """
+    Filter sources by answer relevance using keyword overlap scoring.
+    
+    Returns top_k sources with:
+    - evidence: exact supporting sentence from source
+    - keywords: matching keywords for UI highlighting
+    - relevance_score: keyword overlap score (0-1)
+    """
+    if not sources or not answer_text.strip():
+        return sources[:top_k]
+    
+    import re
+    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
+                  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+                  'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+                  'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+                  'not', 'no', 'yes', 'its', 'about', 'from', 'with', 'by', 'as'}
+    
+    try:
+        answer_lower = answer_text.lower()
+        answer_words = [w for w in re.findall(r'\b\w+\b', answer_lower) 
+                        if len(w) >= 3 and w not in stop_words]
+        answer_word_set = set(answer_words)
+        
+        question_lower = question.lower()
+        question_words = [w for w in re.findall(r'\b\w+\b', question_lower)
+                          if len(w) >= 3 and w not in stop_words]
+        question_word_set = set(question_words)
+        
+        logger.debug(f"Answer keywords: {answer_words[:10]}")
+        logger.debug(f"Question keywords: {question_words[:10]}")
+        
+        scored_sources = []
+        for source in sources:
+            excerpt = source.get("excerpt", "").lower()
+            if not excerpt:
+                continue
+            
+            excerpt_words = set(re.findall(r'\b\w+\b', excerpt))
+            answer_overlap = len(answer_word_set & excerpt_words)
+            answer_coverage = answer_overlap / max(len(answer_word_set), 1)
+            
+            question_overlap = len(question_word_set & excerpt_words)
+            question_coverage = question_overlap / max(len(question_word_set), 1)
+            
+            relevance_score = (0.7 * answer_coverage) + (0.3 * question_coverage)
+            
+            if relevance_score < 0.1:
+                logger.debug(f"Skipping {source.get('filename', '?')} - low relevance")
+                continue
+            
+            sentences = re.split(r'[.!?]+', source["excerpt"])
+            best_sentence = ""
+            best_sentence_score = 0
+            
+            for sentence in sentences:
+                if len(sentence.strip()) < 20:
+                    continue
+                sentence_lower = sentence.strip().lower()
+                sentence_words = set(re.findall(r'\b\w+\b', sentence_lower))
+                sent_overlap = len(answer_word_set & sentence_words)
+                sent_score = sent_overlap / max(len(answer_word_set), 1)
+                
+                if sent_score > best_sentence_score:
+                    best_sentence_score = sent_score
+                    best_sentence = sentence.strip()
+            
+            if not best_sentence:
+                for sentence in sentences:
+                    if len(sentence.strip()) >= 20:
+                        best_sentence = sentence.strip()
+                        break
+            
+            matching_keywords = [w for w in answer_words if w in excerpt][:5]
+            
+            enriched_source = dict(source)
+            enriched_source["evidence"] = best_sentence
+            enriched_source["keywords"] = matching_keywords
+            enriched_source["relevance_score"] = round(relevance_score, 2)
+            
+            scored_sources.append(enriched_source)
+        
+        scored_sources.sort(key=lambda x: x["relevance_score"], reverse=True)
+        top_sources = scored_sources[:top_k]
+        logger.info(f"Filtered {len(sources)} sources → {len(top_sources)} relevant")
+        
+        return top_sources
+        
+    except Exception as e:
+        logger.warning(f"Source filtering failed: {e}")
+        return sources[:top_k]
+
+
+def calculate_confidence(similarity_scores: list[float], docs: list) -> dict:
     """
     Calculate confidence level from similarity scores.
     
@@ -357,12 +462,16 @@ async def run_rag_chain(
     # Step 4: Calculate confidence metrics (accounting for OCR sources)
     confidence_data = calculate_confidence(scores, docs)
 
-    # Step 5: Generate follow-up suggestions
+    # Step 5: Extract and filter sources by answer relevance
+    raw_sources = extract_sources(docs)
+    sources = filter_and_rank_sources(raw_sources, answer, question, top_k=3)
+
+    # Step 6: Generate follow-up suggestions
     suggestions = await generate_suggestions(question, answer)
 
     return {
         "answer": answer,
-        "sources": extract_sources(docs),
+        "sources": sources,
         "suggestions": suggestions,
         "confidence": confidence_data["confidence"],
         "relevance_score": confidence_data["relevance_score"],
@@ -445,14 +554,22 @@ async def stream_rag_chain(
         return
     
     context = format_docs(docs)
-    sources = extract_sources(docs)
+    
+    # Extract raw sources first
+    raw_sources = extract_sources(docs)
 
     # Calculate confidence metrics (accounting for OCR sources)
     confidence_data = calculate_confidence(scores, docs)
+    
+    # For streaming, sources are sent before answer completes
+    # Filter using question keywords (answer not available yet)
+    # This is acceptable - non-streaming has full answer filtering
+    filtered_sources = filter_and_rank_sources(raw_sources, "", question, top_k=3)
 
-    # Yield sources with confidence metrics
+    # Yield filtered sources with confidence metrics
+    # (UX: sources appear early while answer streams)
     sources_payload = {
-        "sources": sources,
+        "sources": filtered_sources,
         "confidence": confidence_data["confidence"],
         "relevance_score": confidence_data["relevance_score"],
         "source_count": confidence_data["source_count"],
@@ -472,5 +589,5 @@ async def stream_rag_chain(
         yield token
 
     # Generate and yield follow-up suggestions AFTER streaming completes
-    suggestions = await generate_suggestions(question, full_answer, sources)
+    suggestions = await generate_suggestions(question, full_answer, filtered_sources)
     yield f"__SUGGESTIONS__{json.dumps(suggestions)}\n"

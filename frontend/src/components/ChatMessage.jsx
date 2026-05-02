@@ -53,6 +53,14 @@ export default function ChatMessage({ message, onSuggestionClick, onViewPDF }) {
               </ReactMarkdown>
             </div>
           )}
+
+          {/* ✅ PART 5 IMPROVEMENT: Show loading state during streaming */}
+          {isStreaming && message.content && (
+            <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] mt-2 animate-pulse">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span>
+              Generating answer...
+            </div>
+          )}
         </div>
 
         {/* Sources */}

@@ -25,6 +25,11 @@ _embeddings = None
 _chroma_client = None
 _vectorstore = None
 
+# ✅ PART 5 IMPROVEMENT: Simple in-memory query cache for performance
+_query_cache = {}
+MAX_CACHE_SIZE = 100
+
+
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
@@ -202,7 +207,15 @@ def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[t
     Get documents with similarity scores for a query.
     
     Returns: list of (doc, score) tuples where score is 0.0-1.0
+    
+    ✅ PART 5 IMPROVEMENT: Query caching for frequently repeated searches
     """
+    # ✅ PART 5: Check cache first
+    cache_key = f"{query}:{','.join(sorted(doc_ids or []))}"
+    if cache_key in _query_cache:
+        logger.info(f"Cache hit for query: {query[:50]}...")
+        return _query_cache[cache_key]
+    
     vectorstore = get_vectorstore()
     
     # Get all results first
@@ -244,6 +257,12 @@ def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[t
         f"✓ Retrieved {len(results)} chunks for query. "
         f"Top score: {top_score:.3f}"
     )
+    
+    # ✅ PART 5: Store in cache (with size limit)
+    if len(_query_cache) >= MAX_CACHE_SIZE:
+        logger.debug(f"Query cache full ({MAX_CACHE_SIZE}), clearing...")
+        _query_cache.clear()
+    _query_cache[cache_key] = results
     
     return results
 

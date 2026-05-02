@@ -1,6 +1,6 @@
-# 📄 DocInsight — Production-Ready PDF Chatbot
+# 📄 DocInsight — Advanced RAG PDF Chatbot
 
-A professional, production-grade RAG (Retrieval-Augmented Generation) chatbot that enables intelligent conversations with your PDF, DOCX, and TXT documents.
+A professional, feature-rich RAG (Retrieval-Augmented Generation) chatbot that enables intelligent conversations with your PDF, DOCX, and TXT documents.
 
 Built with FastAPI + React, streaming chat responses, source citations, chat sessions, document summaries, and PDF export.
 

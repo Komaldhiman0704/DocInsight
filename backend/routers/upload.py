@@ -11,7 +11,7 @@ import logging
 
 from config import get_settings
 from services.vector_store import ingest_document
-from services.document_store import add_document, update_document_summary
+from services.document_store import add_document, update_document_summary, get_all_documents
 from services.summarizer import generate_summary
 
 router = APIRouter()
@@ -72,6 +72,23 @@ async def upload_document(file: UploadFile = File(...), background_tasks: Backgr
             413, 
             f"File too large ({size_mb:.1f}MB). Maximum allowed: {settings.MAX_FILE_SIZE_MB}MB"
         )
+
+    # ✅ PART 3 IMPROVEMENT: Check for duplicate uploads (same filename + size)
+    existing_docs = get_all_documents()
+    for doc in existing_docs:
+        if doc["filename"] == file.filename and doc.get("file_size") == len(content):
+            logger.info(f"Duplicate detected: {file.filename} (size: {len(content)} bytes)")
+            return {
+                "success": True,
+                "cached": True,
+                "document": {
+                    "id": doc["id"],
+                    "filename": file.filename,
+                    "chunk_count": doc.get("chunk_count", 0),
+                    "file_size": len(content),
+                    "message": "Document already uploaded"
+                }
+            }
 
     # Generate unique ID and save file
     doc_id = str(uuid.uuid4())[:8]

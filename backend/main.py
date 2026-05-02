@@ -5,6 +5,7 @@ Free stack: HuggingFace Embeddings + ChromaDB + Groq LLM (free tier)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 import os
 import logging
 
@@ -18,10 +19,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events"""
+    # Startup
+    logger.info("=" * 80)
+    logger.info("DocInsight Backend Starting")
+    logger.info("=" * 80)
+    
+    yield
+    
+    # Shutdown
+    shutdown_vectorstore()
+
 app = FastAPI(
     title="DocInsight API",
     description="RAG-powered document chatbot using LangChain + ChromaDB",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS - allow frontend on port 5173 (Vite default)
@@ -42,18 +58,6 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(chat.router,   prefix="/api", tags=["Chat"])
 app.include_router(documents.router, prefix="/api", tags=["Documents"])
 app.include_router(sessions.router, prefix="/api", tags=["Sessions"])
-
-@app.on_event("startup")
-async def startup_event():
-    """Log system status on startup"""
-    logger.info("=" * 80)
-    logger.info("DocInsight Backend Starting")
-    logger.info("=" * 80)
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup resources on app shutdown"""
-    shutdown_vectorstore()
 
 @app.get("/")
 def root():

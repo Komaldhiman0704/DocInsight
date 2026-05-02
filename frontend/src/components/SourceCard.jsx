@@ -52,6 +52,28 @@ export default function SourceCard({ sources, onViewPDF }) {
               )}>
                 {s.excerpt}
               </p>
+
+              {/* ✅ PHASE 3-4: Display semantic matched text and ranking score */}
+              {s.matched_text && (
+                <div className="mt-2 pt-2 border-t border-[var(--border)] space-y-1">
+                  <div className="text-[10px] text-[var(--text-muted)] italic">
+                    <span className="text-[var(--accent)] font-semibold">Key excerpt:</span> "{s.matched_text}"
+                  </div>
+                  {s.semantic_score !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 flex-1 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, (s.semantic_score * 100))}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] text-[var(--text-muted)] font-mono whitespace-nowrap">
+                        {(s.semantic_score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

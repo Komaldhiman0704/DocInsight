@@ -118,6 +118,25 @@ export async function* streamChat({ question, chatHistory, docIds, sessionId }) 
           i += 2
           continue
         }
+
+        // ✅ PHASE 3-4: Handle semantically enhanced sources (improve after answer generation)
+        if (eventType === 'sources_enhanced') {
+          try {
+            const enhancedData = JSON.parse(rawData)
+            // Pass enhanced sources to frontend
+            if (enhancedData.sources) {
+              yield { 
+                type: 'sources_enhanced',
+                sources: enhancedData.sources,
+              }
+            }
+          } catch (e) {
+            console.debug('Failed to parse enhanced sources', e)
+          }
+          i += 2
+          continue
+        }
+
         if (eventType === 'suggestions') {
           try {
             const suggestions = JSON.parse(rawData)

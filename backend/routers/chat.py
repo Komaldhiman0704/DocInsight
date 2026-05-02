@@ -65,6 +65,7 @@ async def chat_stream(req: ChatRequest):
         confidence = None
         relevance_score = None
         suggestions = []
+        enhanced_sources = []  # ✅ PHASE 3-4: Store semantically enhanced sources
         
         try:
             async for chunk in stream_rag_chain(
@@ -86,6 +87,21 @@ async def chat_stream(req: ChatRequest):
                     except:
                         sources_list = []
                     yield f"event: sources\ndata: {sources_json}\n\n"
+                
+                # ✅ PHASE 3-4: Handle semantically enhanced sources
+                elif chunk.startswith("__SOURCES_ENHANCED__"):
+                    enhanced_sources_json = chunk.replace("__SOURCES_ENHANCED__", "").strip()
+                    try:
+                        enhanced_data = json.loads(enhanced_sources_json)
+                        enhanced_sources = enhanced_data.get("sources", [])
+                        # Update sources_list with enhanced version
+                        sources_list = enhanced_sources
+                        logger.info(f"Received {len(enhanced_sources)} semantically reranked sources")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse enhanced sources: {e}")
+                    # Yield enhanced sources to frontend
+                    yield f"event: sources_enhanced\ndata: {enhanced_sources_json}\n\n"
+                
                 elif chunk.startswith("__SUGGESTIONS__"):
                     suggestions_json = chunk.replace("__SUGGESTIONS__", "").strip()
                     try:
@@ -104,12 +120,14 @@ async def chat_stream(req: ChatRequest):
                 try:
                     # Save user question
                     save_message(req.session_id, "user", req.question)
+                    # Use enhanced sources if available, otherwise original
+                    final_sources = enhanced_sources if enhanced_sources else sources_list
                     # Save assistant answer with sources, confidence, relevance, and suggestions
                     save_message(
                         req.session_id, 
                         "assistant", 
                         answer_content, 
-                        sources=sources_list,
+                        sources=final_sources,
                         confidence=confidence,
                         relevance_score=relevance_score,
                         suggestions=suggestions
