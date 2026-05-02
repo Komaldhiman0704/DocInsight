@@ -285,6 +285,24 @@ export default function App() {
     try {
       const history = buildHistory()
       let fullContent = ''
+      let tokenBuffer = ''
+      let lastUpdateTime = Date.now()
+      
+      // Configure token buffering for smooth streaming:
+      // - Buffer tokens and update UI every ~50ms for smooth rendering
+      // - This prevents jerky updates while keeping response real-time
+      const BUFFER_TIME_MS = 50
+      const UPDATE_UI = () => {
+        const captured = fullContent + tokenBuffer
+        setMessages(prev => prev.map(m =>
+          m.id === aiMsgId
+            ? { ...m, content: captured, status: 'streaming' }
+            : m
+        ))
+        fullContent = captured
+        tokenBuffer = ''
+        lastUpdateTime = Date.now()
+      }
 
       for await (const chunk of streamChat({
         question,
@@ -307,16 +325,18 @@ export default function App() {
               : m
           ))
         } else if (chunk.type === 'token') {
-          fullContent += chunk.token
-          const captured = fullContent
-          setMessages(prev => prev.map(m =>
-            m.id === aiMsgId
-              ? { ...m, content: captured, status: 'streaming' }
-              : m
-          ))
+          tokenBuffer += chunk.token
+          // Update UI if enough time has passed or buffer is getting large
+          const now = Date.now()
+          if (now - lastUpdateTime >= BUFFER_TIME_MS || tokenBuffer.length > 20) {
+            UPDATE_UI()
+          }
         } 
         // ✅ PHASE 3-4: Handle semantically enhanced sources (improve after answer generation)
         else if (chunk.type === 'sources_enhanced') {
+          // Flush any buffered tokens before updating sources
+          if (tokenBuffer) UPDATE_UI()
+          
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId
               ? { 
@@ -328,12 +348,21 @@ export default function App() {
           ))
         } 
         else if (chunk.type === 'suggestions') {
+          // Flush any buffered tokens before updating suggestions
+          if (tokenBuffer) UPDATE_UI()
+          
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId
               ? { ...m, suggestions: chunk.suggestions }
               : m
           ))
         }
+      }
+
+      // Flush any remaining buffered tokens
+      if (tokenBuffer) {
+        fullContent += tokenBuffer
+        tokenBuffer = ''
       }
 
       setMessages(prev => prev.map(m =>

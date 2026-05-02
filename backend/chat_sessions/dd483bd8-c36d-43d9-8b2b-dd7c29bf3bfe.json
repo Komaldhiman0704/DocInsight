@@ -1,0 +1,145 @@
+{
+  "id": "dd483bd8-c36d-43d9-8b2b-dd7c29bf3bfe",
+  "doc_ids": [
+    "1e757392",
+    "c2295a86",
+    "eaedeccf",
+    "704fc688"
+  ],
+  "title": "what is supervised learning",
+  "created_at": "2026-05-02T20:36:26.006120",
+  "messages": [
+    {
+      "role": "user",
+      "content": "what is supervised learning",
+      "timestamp": "2026-05-02T20:36:43.946198",
+      "sources": [],
+      "suggestions": []
+    },
+    {
+      "role": "assistant",
+      "content": "**Supervised Learning Definition**\n\nSupervised learning involves training a machine learning model using labeled data, which means the data is already associated with the correct answer. This type of learning enables the model to learn from the labeled data and make predictions on new, unseen data.\n\n**Key Characteristics**\n\n* The model is trained on labeled data, where each input is paired with its correct output.\n* The goal is to learn a mapping between inputs and outputs, so the model can make accurate predictions on new data.\n* The model learns by comparing its predictions with the actual labels and adjusting its parameters to improve accuracy.\n\n**Example**\n\nConsider teaching a child to identify fruits. You show them pictures of various fruits, like apples and bananas, while telling them, \"This is an apple,\" and \"This is a banana.\" Over time, the child learns to identify fruits correctly based on the examples given. This process is similar to supervised learning, where the model learns from labeled data to make accurate predictions.\n\n**Key Steps**\n\n1. **Input and Output Pairing**: Each input is paired with its correct label.\n2. **Training**: The model learns by comparing its prediction with the actual label and adjusting itself to improve accuracy.\n3. **Error Correction**: If the model predicts incorrectly, it adjusts its internal parameters to reduce the error.\n4. **Outcome**: The model eventually learns to map inputs to the correct outputs.",
+      "timestamp": "2026-05-02T20:36:43.959470",
+      "sources": [
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 13,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\n\u2022Key Steps in Supervised Learning:\u2022Input and Output Pairing: Each input (e.g., a fruit picture) is paired with its correct label (e.g., \"apple\").\u2022Training: The model learns by comparing its prediction with the actual label and adjusting itself to improve accuracy.\u2022Er...",
+          "relevance_score": 0.8552369564214785,
+          "evidence": "\u2022Training: The model learns by comparing its prediction with the actual label and adjusting itself to improve accuracy",
+          "keywords": [
+            "supervised",
+            "learning",
+            "supervised",
+            "learning",
+            "training"
+          ]
+        },
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 12,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\nSupervised Learning\u2022Supervised learning involves training a machine learning model using labeled data, which means the data is already associated with the correct answer.\u2022Example: Consider teaching a child to identify fruits. You show them pictures of various fruits,...",
+          "relevance_score": 0.8256942866902564,
+          "evidence": "in/gate\nSupervised Learning\u2022Supervised learning involves training a machine learning model using labeled data, which means the data is already associated with the correct answer",
+          "keywords": [
+            "supervised",
+            "learning",
+            "supervised",
+            "learning",
+            "involves"
+          ]
+        },
+        {
+          "filename": "Notes.pdf",
+          "page": 8,
+          "doc_id": "eaedeccf",
+          "excerpt": "supervised algorithms. \nEg:  \n \n \nSelf supervised learning \nSelf-supervised learning is a deep learning methodology where a model is pre-trained \nusing unlabelled data and the data labels are generated automatically,  which are further \nused in subsequent iterations as ground truths. The fundamental...",
+          "relevance_score": 0.661290186900689,
+          "evidence": "Eg:  \n \n \nSelf supervised learning \nSelf-supervised learning is a deep learning methodology where a model is pre-trained \nusing unlabelled data and the data labels are generated automatically,  which are further \nused in subsequent iterations as ground truths",
+          "keywords": [
+            "supervised",
+            "learning",
+            "supervised",
+            "learning",
+            "learning"
+          ]
+        }
+      ],
+      "suggestions": [
+        "How does labeling impact accuracy?",
+        "What affects model mapping?",
+        "How does correction occur?"
+      ],
+      "confidence": "medium",
+      "relevance_score": 0.64
+    },
+    {
+      "role": "user",
+      "content": "ml",
+      "timestamp": "2026-05-02T20:51:55.416793",
+      "sources": [],
+      "suggestions": []
+    },
+    {
+      "role": "assistant",
+      "content": "**Machine Learning (ML) Definition**\n\nMachine learning is a subset of artificial intelligence (AI) that enables computers to learn from and make decisions based on data, without being explicitly programmed. It involves developing algorithms that allow computers to process and learn from data automatically.\n\n**Key Aspects of Machine Learning**\n\n* **Learning from Data**: Machine learning algorithms analyze vast amounts of data to identify patterns, relationships, and trends.\n* **Improving Performance**: The goal of machine learning is to enable computers to learn from their experiences and improve their performance over time without human intervention.\n* **Automated Decision-Making**: Machine learning enables computers to make decisions based on the insights gained from the data, such as predicting consumer behavior or detecting fraudulent transactions.\n\n**Functionality of Machine Learning**\n\nMachine learning algorithms can perform a variety of tasks, including:\n\n* **Predicting Outcomes**: Machine learning can predict outcomes based on historical data, such as forecasting sales or predicting customer churn.\n* **Classifying Data**: Machine learning can classify data into categories, such as spam vs. non-spam emails.\n* **Clustering Data**: Machine learning can group similar data points together, such as customer segmentation.\n\n**Integration with AI and Cognitive Technologies**\n\nMachine learning can be combined with AI and cognitive technologies to enhance its ability to process and interpret large volumes of complex data. This integration enables machines to learn, reason, and interact with humans in a more natural and intuitive way.",
+      "timestamp": "2026-05-02T20:51:55.436556",
+      "sources": [
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 30,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\nMachine learning\u2022Machine learning is a subset of artificial intelligence (AI) that enables computers to learn from and make decisions based on data, without being explicitly programmed. \u2022Definition: Machine learning involves developing algorithms that allow computers...",
+          "relevance_score": 0.8602800809408668,
+          "evidence": "in/gate\nMachine learning\u2022Machine learning is a subset of artificial intelligence (AI) that enables computers to learn from and make decisions based on data, without being explicitly programmed",
+          "keywords": [
+            "machine",
+            "learning",
+            "definition",
+            "machine",
+            "learning"
+          ]
+        },
+        {
+          "filename": "Notes.pdf",
+          "page": 1,
+          "doc_id": "eaedeccf",
+          "excerpt": "DEPT. OF AIML , JNNCE 1 \n \n \nMACHINE LEARNING STUDY MATERIAL, \n \nMODULE I: \n \nDefinitions of Machine Learning \n Machine Learning  is the science (and art) of programming computers so they \ncan learn from data. \n Machine Learning is the field of study that gives computers the ability to learn \nwithou...",
+          "relevance_score": 0.7616247466761756,
+          "evidence": "Machine Learning is the field of study that gives computers the ability to learn \nwithout being explicitly programmed",
+          "keywords": [
+            "machine",
+            "learning",
+            "definition",
+            "machine",
+            "learning"
+          ]
+        },
+        {
+          "filename": "Notes.pdf",
+          "page": 12,
+          "doc_id": "eaedeccf",
+          "excerpt": "DEPT. OF AIML , JNNCE 12 \n \n \nMACHINE LEARNING STUDY MATERIAL, \nOne more way to categorize Machine Learning systems is by how they  generalize. There \nare two main approaches to generalization: instance -based learning and model -based \nlearning. \nModel-Based Learning \nModel-based learning involves ...",
+          "relevance_score": 0.7222905948014642,
+          "evidence": "Model-Based Learning \nModel-based learning involves creating a mathematical model that can predict outcomes \nbased on input data",
+          "keywords": [
+            "machine",
+            "learning",
+            "machine",
+            "learning",
+            "learn"
+          ]
+        }
+      ],
+      "suggestions": [
+        "How does ML improve performance?",
+        "What tasks can ML perform?",
+        "How does ML integrate AI?"
+      ],
+      "confidence": "high",
+      "relevance_score": 0.7
+    }
+  ]
+}

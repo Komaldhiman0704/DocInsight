@@ -7,7 +7,10 @@ import os
 from datetime import datetime
 from typing import Optional
 import uuid
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 SESSIONS_DIR = "./chat_sessions"
 
@@ -129,17 +132,26 @@ def list_sessions() -> list[dict]:
     for filename in os.listdir(SESSIONS_DIR):
         if filename.endswith(".json"):
             path = os.path.join(SESSIONS_DIR, filename)
-            with open(path, "r") as f:
-                session = json.load(f)
-                # Count only user messages (queries), not assistant responses
-                user_message_count = sum(1 for msg in session["messages"] if msg.get("role") == "user")
-                sessions.append({
-                    "id": session["id"],
-                    "title": session["title"],
-                    "created_at": session["created_at"],
-                    "doc_ids": session["doc_ids"],
-                    "message_count": user_message_count
-                })
+            try:
+                # Double-check file still exists (prevent race condition recovery)
+                if not os.path.exists(path):
+                    logger.warning(f"Session file disappeared during listing: {path}")
+                    continue
+                    
+                with open(path, "r") as f:
+                    session = json.load(f)
+                    # Count only user messages (queries), not assistant responses
+                    user_message_count = sum(1 for msg in session["messages"] if msg.get("role") == "user")
+                    sessions.append({
+                        "id": session["id"],
+                        "title": session["title"],
+                        "created_at": session["created_at"],
+                        "doc_ids": session["doc_ids"],
+                        "message_count": user_message_count
+                    })
+            except (json.JSONDecodeError, IOError) as e:
+                logger.error(f"Error reading session {filename}: {e}")
+                continue
     
     # Sort by created_at descending (newest first)
     sessions.sort(key=lambda s: s["created_at"], reverse=True)
@@ -147,15 +159,37 @@ def list_sessions() -> list[dict]:
 
 
 def delete_session(session_id: str) -> bool:
-    """Delete a session"""
+    """
+    Delete a session permanently.
+    
+    Args:
+        session_id: Session ID to delete
+        
+    Returns:
+        True if deletion was successful, False if session not found
+    """
     _ensure_dir()
     
     path = _get_session_path(session_id)
     if not os.path.exists(path):
+        logger.warning(f"Session not found for deletion: {session_id}")
         return False
     
-    os.remove(path)
-    return True
+    try:
+        # Remove the session file
+        os.remove(path)
+        
+        # Verify deletion by checking if file still exists
+        if os.path.exists(path):
+            logger.error(f"Session file still exists after deletion: {path}")
+            return False
+        
+        logger.info(f"Session deleted successfully: {session_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error deleting session {session_id}: {e}")
+        return False
 
 
 def rename_session(session_id: str, new_title: str) -> bool:
