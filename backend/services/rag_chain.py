@@ -202,6 +202,154 @@ def extract_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
+def filter_sources_by_semantic_similarity(
+    sources: list[dict],
+    answer_text: str,
+    docs: list[Document],
+    top_k: int = 3
+) -> list[dict]:
+    """
+    Filter sources by semantic similarity to the generated answer.
+    
+    Uses existing HuggingFace embedding model (all-MiniLM-L6-v2) to compute
+    cosine similarity between answer embeddings and source chunk embeddings.
+    
+    This enhances source relevance: sources are now selected based on
+    ANSWER content, not just QUERY keywords.
+    
+    Args:
+        sources: Raw sources from extract_sources()
+        answer_text: Generated answer (complete)
+        docs: Original retrieved Document objects
+        top_k: Number of top sources to return (default 3)
+    
+    Returns:
+        Filtered and ranked sources with:
+        - relevance_score: Semantic similarity to answer (0-1)
+        - evidence: Answer-relevant sentence from source
+        - keywords: Answer-based keywords
+    """
+    if not sources or not answer_text or not docs:
+        return sources[:top_k]
+    
+    import re
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    
+    try:
+        # Get existing embedding model (singleton, already loaded)
+        from services.vector_store import get_embeddings
+        embeddings_model = get_embeddings()
+        
+        # Embed the answer once
+        logger.debug(f"Computing answer embedding for semantic filtering...")
+        answer_embedding = embeddings_model.embed_query(answer_text)
+        
+        # Extract meaningful answer keywords
+        stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+            'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might',
+            'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+            'not', 'no', 'yes', 'its', 'about', 'from', 'with', 'by', 'as'
+        }
+        answer_words = [
+            w for w in re.findall(r'\b\w+\b', answer_text.lower())
+            if len(w) >= 4 and w not in stop_words
+        ]
+        answer_word_set = set(answer_words)
+        
+        # Score each source by semantic similarity
+        scored_sources = []
+        
+        for idx, source in enumerate(sources):
+            # Find corresponding document chunk
+            doc = None
+            for d in docs:
+                if (d.metadata.get("filename") == source["filename"] and
+                    d.metadata.get("page") == (source["page"] - 1)):
+                    doc = d
+                    break
+            
+            if not doc:
+                logger.debug(f"Doc not found for {source.get('filename')} p{source.get('page')}, using excerpt")
+                # Fallback: use the excerpt from source
+                source_text = source.get("excerpt", "")
+            else:
+                source_text = doc.page_content
+            
+            if not source_text:
+                continue
+            
+            # Embed source chunk
+            source_embedding = embeddings_model.embed_query(source_text)
+            
+            # Compute cosine similarity
+            similarity = cosine_similarity(
+                [answer_embedding],
+                [source_embedding]
+            )[0][0]
+            
+            # Find best answer-relevant sentence from source
+            sentences = re.split(r'[.!?]+', source_text)
+            best_sentence = ""
+            best_score = 0
+            
+            for sentence in sentences:
+                if len(sentence.strip()) < 20:
+                    continue
+                
+                # Score by keyword overlap with answer
+                sent_words = set(re.findall(r'\b\w+\b', sentence.lower()))
+                overlap = len(answer_word_set & sent_words)
+                score = overlap / max(len(answer_word_set), 1)
+                
+                if score > best_score:
+                    best_score = score
+                    best_sentence = sentence.strip()
+            
+            # Fallback to first substantial sentence
+            if not best_sentence:
+                for sentence in sentences:
+                    if len(sentence.strip()) >= 20:
+                        best_sentence = sentence.strip()
+                        break
+            
+            # Extract matching keywords (from answer, not query!)
+            source_text_lower = source_text.lower()
+            matching_keywords = [
+                w for w in answer_words[:15]
+                if w in source_text_lower
+            ][:5]
+            
+            # Update source with semantic fields
+            enriched_source = dict(source)
+            enriched_source["relevance_score"] = float(similarity)
+            enriched_source["evidence"] = best_sentence
+            enriched_source["keywords"] = matching_keywords
+            
+            scored_sources.append(enriched_source)
+        
+        # Sort by semantic similarity (highest first)
+        scored_sources.sort(key=lambda x: x["relevance_score"], reverse=True)
+        
+        # Return top_k
+        top_sources = scored_sources[:top_k]
+        
+        if top_sources:
+            avg_sim = np.mean([s["relevance_score"] for s in top_sources])
+            logger.info(
+                f"Semantic filtering: {len(sources)} sources → {len(top_sources)} top sources "
+                f"(avg similarity: {avg_sim:.3f})"
+            )
+        
+        return top_sources
+        
+    except Exception as e:
+        logger.warning(f"Semantic filtering failed, falling back to basic sources: {e}")
+        return sources[:top_k]
+
+
 def filter_and_rank_sources(sources: list[dict], answer_text: str, question: str, top_k: int = 3) -> list[dict]:
     """
     Filter sources by answer relevance using keyword overlap scoring.
@@ -462,11 +610,22 @@ async def run_rag_chain(
     # Step 4: Calculate confidence metrics (accounting for OCR sources)
     confidence_data = calculate_confidence(scores, docs)
 
-    # Step 5: Extract and filter sources by answer relevance
+    # Step 5: Extract raw sources
     raw_sources = extract_sources(docs)
-    sources = filter_and_rank_sources(raw_sources, answer, question, top_k=3)
+    
+    # Step 6: Filter sources by semantic similarity to answer (for maximum relevance)
+    try:
+        sources = filter_sources_by_semantic_similarity(
+            sources=raw_sources,
+            answer_text=answer,
+            docs=docs,
+            top_k=3
+        )
+    except Exception as e:
+        logger.warning(f"Semantic filtering failed, using keyword-based: {e}")
+        sources = filter_and_rank_sources(raw_sources, answer, question, top_k=3)
 
-    # Step 6: Generate follow-up suggestions
+    # Step 7: Generate follow-up suggestions
     suggestions = await generate_suggestions(question, answer)
 
     return {
@@ -561,15 +720,14 @@ async def stream_rag_chain(
     # Calculate confidence metrics (accounting for OCR sources)
     confidence_data = calculate_confidence(scores, docs)
     
-    # For streaming, sources are sent before answer completes
-    # Filter using question keywords (answer not available yet)
-    # This is acceptable - non-streaming has full answer filtering
-    filtered_sources = filter_and_rank_sources(raw_sources, "", question, top_k=3)
+    # For streaming, send preliminary sources based on question
+    # (answer not available yet, but this provides instant feedback)
+    preliminary_sources = filter_and_rank_sources(raw_sources, "", question, top_k=3)
 
-    # Yield filtered sources with confidence metrics
+    # Yield preliminary sources with confidence metrics
     # (UX: sources appear early while answer streams)
     sources_payload = {
-        "sources": filtered_sources,
+        "sources": preliminary_sources,
         "confidence": confidence_data["confidence"],
         "relevance_score": confidence_data["relevance_score"],
         "source_count": confidence_data["source_count"],
@@ -587,7 +745,29 @@ async def stream_rag_chain(
     }):
         full_answer += token
         yield token
+    
+    # NOW filter sources by answer semantic similarity (answer is complete!)
+    try:
+        refined_sources = filter_sources_by_semantic_similarity(
+            sources=raw_sources,
+            answer_text=full_answer,
+            docs=docs,
+            top_k=3
+        )
+    except Exception as e:
+        logger.warning(f"Semantic filtering failed in streaming, using preliminary: {e}")
+        refined_sources = preliminary_sources
+
+    # Yield refined sources (frontend will replace preliminary ones)
+    refined_payload = {
+        "sources": refined_sources,
+        "confidence": confidence_data["confidence"],
+        "relevance_score": confidence_data["relevance_score"],
+        "source_count": confidence_data["source_count"],
+        "ocr_sources": confidence_data.get("ocr_sources", False),
+    }
+    yield f"__SOURCES_ENHANCED__{json.dumps(refined_payload)}\n"
 
     # Generate and yield follow-up suggestions AFTER streaming completes
-    suggestions = await generate_suggestions(question, full_answer, filtered_sources)
+    suggestions = await generate_suggestions(question, full_answer, refined_sources)
     yield f"__SUGGESTIONS__{json.dumps(suggestions)}\n"

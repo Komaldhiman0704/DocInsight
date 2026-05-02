@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { X, ZoomIn, ZoomOut, Loader } from 'lucide-react'
 
+// ── PDF Blob Cache (global across all component instances) ──────────────────
+// Significantly speeds up re-opening the same PDF
+const pdfBlobCache = new Map()
+
 export default function PDFViewer({ filename, docPath, onClose }) {
   const [scale, setScale] = useState(100)
   const [error, setError] = useState(null)
@@ -13,6 +17,17 @@ export default function PDFViewer({ filename, docPath, onClose }) {
       try {
         setLoading(true)
         setError(null)
+        
+        // Check cache first (instant load if cached)
+        const cacheKey = docPath
+        if (pdfBlobCache.has(cacheKey)) {
+          console.log('📦 PDF loaded from cache:', filename)
+          setBlobUrl(pdfBlobCache.get(cacheKey))
+          setLoading(false)
+          return
+        }
+        
+        // Not in cache, fetch from server
         const response = await fetch(docPath)
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const blob = await response.blob()
@@ -23,6 +38,11 @@ export default function PDFViewer({ filename, docPath, onClose }) {
         }
         
         const url = URL.createObjectURL(blob)
+        
+        // Cache the blob URL for future opens
+        pdfBlobCache.set(cacheKey, url)
+        console.log('💾 PDF cached for future opens:', filename)
+        
         setBlobUrl(url)
       } catch (err) {
         console.error('PDF fetch error:', err)
@@ -34,11 +54,10 @@ export default function PDFViewer({ filename, docPath, onClose }) {
 
     fetchPDF()
 
-    // Cleanup blob URL on unmount
-    return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
-    }
-  }, [docPath])
+    // Note: Don't revoke cached URLs on unmount
+    // They'll be reused when the same PDF is opened again
+    // This dramatically improves UX for re-opening PDFs
+  }, [docPath, filename])
 
   const handleZoomIn = () => {
     setScale(prev => Math.min(prev + 10, 200))
