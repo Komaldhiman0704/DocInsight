@@ -32,6 +32,13 @@ export default function SourceCard({ sources, onViewPDF }) {
                   p.{s.page}
                 </span>
                 
+                {/* ⭐ NEW: Show relevance score if available */}
+                {s.relevance_score !== undefined && (
+                  <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-medium">
+                    {Math.round(s.relevance_score * 100)}% match
+                  </span>
+                )}
+                
                 {onViewPDF && (
                   <button
                     onClick={() => onViewPDF({ 
@@ -61,7 +68,7 @@ export default function SourceCard({ sources, onViewPDF }) {
                 'text-[var(--text-secondary)] leading-relaxed line-clamp-3',
                 'source-highlight rounded px-1 py-0.5'
               )}>
-                {s.excerpt}
+                {s.excerpt.slice(0, 200)}{s.excerpt.length > 200 ? '...' : ''}
               </p>
 
               {/* ✅ PHASE 3-4: Display semantic matched text and ranking score */}

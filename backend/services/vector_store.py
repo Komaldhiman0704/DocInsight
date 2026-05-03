@@ -218,10 +218,10 @@ def get_docs_with_scores(query: str, doc_ids: list[str] | None = None) -> list[t
     
     vectorstore = get_vectorstore()
     
-    # Get all results first
+    # ✅ OPTIMIZED: Retrieve exactly what we need (not double)
     results = vectorstore.similarity_search_with_score(
         query=query,
-        k=settings.TOP_K_RESULTS * 2,
+        k=settings.TOP_K_RESULTS,
     )
     
     logger.debug(f"Query: '{query}' → Retrieved {len(results)} candidates")

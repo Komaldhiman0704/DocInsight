@@ -76,22 +76,22 @@ Context from documents (with page references):
 ])
 
 FOLLOWUP_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """As an expert analyst, generate exactly 3 insightful follow-up questions that deepen understanding of the topic.
+    ("system", """As an expert analyst, generate exactly 2 concise follow-up questions that deepen understanding of the topic.
 
 Guidelines for follow-up questions:
 - Each should naturally extend the conversation and explore related concepts
-- Focus on deeper insights, implications, relationships, or practical applications
+- Focus on deeper insights, implications, or practical applications
 - Make questions specific to the document content, not generic
-- Keep each under 12 words for clarity
-- Ensure they're all answerable from the document
+- Keep each under 15 words for clarity
+- Ensure they're both answerable from the document
 - Arrange from most relevant to exploratory
 
-Return ONLY a JSON array of exactly 3 strings without numbering.
-Example: ["How do these factors interact with market conditions?", "What are the long-term implications?", "How does this compare to industry standards?"]
+Return ONLY a JSON array of exactly 2 strings without numbering.
+Example: ["How do these factors interact with market conditions?", "What are the long-term implications?"]
 
 Original question: {question}
 Answer given: {answer}"""),
-    ("human", "Generate 3 insightful follow-up questions as a JSON array.")
+    ("human", "Generate 2 concise follow-up questions as a JSON array.")
 ])
 
 
@@ -527,8 +527,8 @@ async def generate_suggestions(question: str, answer: str, sources: list[dict] =
         import json
         suggestions = json.loads(response.strip())
         
-        # Validate it's a list of strings
-        if isinstance(suggestions, list) and len(suggestions) == 3:
+        # Validate it's a list of strings (expecting exactly 2)
+        if isinstance(suggestions, list) and len(suggestions) == 2:
             if all(isinstance(s, str) for s in suggestions):
                 return suggestions
         

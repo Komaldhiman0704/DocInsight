@@ -7,17 +7,20 @@ import SuggestionsRow from './SuggestionsRow'
 import ConfidenceIndicator from './ConfidenceIndicator'
 import clsx from 'clsx'
 
-// Loading dots animation
+// Loading dots animation with thinking text
 function ThinkingDots() {
   return (
-    <div className="flex items-center gap-1 py-1 px-1">
-      {[0, 1, 2].map(i => (
-        <span
-          key={i}
-          className="w-2 h-2 rounded-full bg-[var(--text-muted)] animate-pulse-dot"
-          style={{ animationDelay: `${i * 0.2}s` }}
-        />
-      ))}
+    <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs">
+      <div className="flex gap-1">
+        {[0, 1, 2].map(i => (
+          <span
+            key={i}
+            className="w-1.5 h-1.5 rounded-full bg-current animate-pulse-dot"
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </div>
+      <span className="opacity-60">Thinking...</span>
     </div>
   )
 }
