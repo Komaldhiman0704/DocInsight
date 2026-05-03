@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # RAG settings
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
-    TOP_K_RESULTS: int = 4
+    TOP_K_RESULTS: int = 3  # Optimized: reduce from 4 to 3 for faster retrieval
 
     class Config:
         env_file = ".env"

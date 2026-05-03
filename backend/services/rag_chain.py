@@ -107,6 +107,8 @@ def format_docs(docs: list[Document]) -> str:
     2. Sources are extractable for display (handled by extract_sources)
     3. Traceability is maintained through the entire pipeline
     
+    OPTIMIZED: Truncates each chunk to max 500 chars (keeps relevance, saves tokens)
+    
     Args:
         docs: Retrieved document chunks with metadata
     
@@ -121,6 +123,8 @@ def format_docs(docs: list[Document]) -> str:
         return "[No relevant content found in documents]"
     
     parts = []
+    seen_chunks = set()  # Track duplicates
+    
     for i, doc in enumerate(docs, 1):
         page_num = doc.metadata.get("page", 0)
         # Convert 0-indexed page numbering to 1-indexed for display
@@ -129,11 +133,24 @@ def format_docs(docs: list[Document]) -> str:
         else:
             page = "?"
         filename = doc.metadata.get("filename", "document")
+        chunk_id = doc.metadata.get("chunk_id", "")
+        
+        # Skip duplicate chunks (same file + page + similar content)
+        if chunk_id and chunk_id in seen_chunks:
+            logger.debug(f"Skipping duplicate chunk: {chunk_id}")
+            continue
+        if chunk_id:
+            seen_chunks.add(chunk_id)
+        
+        # Optimize: Truncate content to 500 chars (keeps relevance, reduces tokens)
+        content = doc.page_content[:500]
+        if len(doc.page_content) > 500:
+            content += "..."
         
         # Format with prominent source markers
         parts.append(
             f"[Source {i} — {filename}, Page {page}]:\n"
-            f"{doc.page_content}"
+            f"{content}"
         )
     
     return "\n\n---\n\n".join(parts)
