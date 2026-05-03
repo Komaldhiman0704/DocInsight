@@ -540,6 +540,70 @@ async def generate_suggestions(question: str, answer: str, sources: list[dict] =
         return []
 
 
+async def explain_source_relevance(
+    question: str,
+    answer: str,
+    source_dict: dict,
+) -> str:
+    """
+    Generate a 1-sentence explanation of why a source supports the answer.
+    
+    Educational focus: explains WHY the source is relevant, not just WHAT it says.
+    
+    Args:
+        question: Original user question
+        answer: Generated answer text
+        source_dict: Source dict with 'filename', 'page', 'excerpt', 'evidence'
+        
+    Returns:
+        1-sentence explanation (15-25 words) or fallback if generation fails
+    """
+    try:
+        llm = get_llm()
+        
+        # Use evidence if available (from semantic filtering), otherwise excerpt
+        source_text = source_dict.get("evidence") or source_dict.get("excerpt", "")
+        if not source_text:
+            return "This source supports the answer."
+        
+        EXPLAIN_PROMPT = ChatPromptTemplate.from_messages([
+            ("system", """You are an educational assistant explaining source relevance.
+
+Generate ONE sentence (15–25 words) explaining:
+- What part of the answer this source supports
+- Why it matters for understanding
+
+Keep it simple, specific, and student-friendly.
+Return ONLY the sentence, nothing else."""),
+            ("user", """Question: {question}
+Answer (first 300 chars): {answer}
+Source text: {source_text}
+
+Explain:""")
+        ])
+        
+        chain = EXPLAIN_PROMPT | llm | StrOutputParser()
+        
+        explanation = await chain.ainvoke({
+            "question": question[:100],  # Truncate for efficiency
+            "answer": answer[:300],
+            "source_text": source_text[:200],
+        })
+        
+        explanation = explanation.strip()
+        
+        # Validate explanation (should be a sentence)
+        if not explanation or len(explanation) < 10:
+            return "This source supports the answer."
+        
+        logger.debug(f"Generated explanation for {source_dict.get('filename')}: {explanation}")
+        return explanation
+        
+    except Exception as e:
+        logger.debug(f"Explanation generation failed: {e}")
+        return "This source supports the answer."  # Safe fallback
+
+
 # ── Non-streaming RAG ─────────────────────────────────────────────────────────
 
 async def run_rag_chain(
@@ -624,8 +688,26 @@ async def run_rag_chain(
     except Exception as e:
         logger.warning(f"Semantic filtering failed, using keyword-based: {e}")
         sources = filter_and_rank_sources(raw_sources, answer, question, top_k=3)
+    
+    # Step 7: Enrich sources with explanations (WHY this source supports the answer)
+    enriched_sources = []
+    for source in sources:
+        try:
+            explanation = await explain_source_relevance(
+                question=question,
+                answer=answer,
+                source_dict=source
+            )
+            source["explanation"] = explanation
+        except Exception as e:
+            logger.warning(f"Failed to generate explanation for {source.get('filename')}: {e}")
+            source["explanation"] = "This source supports the answer."
+        
+        enriched_sources.append(source)
+    
+    sources = enriched_sources
 
-    # Step 7: Generate follow-up suggestions
+    # Step 8: Generate follow-up suggestions
     suggestions = await generate_suggestions(question, answer)
 
     return {
@@ -757,8 +839,26 @@ async def stream_rag_chain(
     except Exception as e:
         logger.warning(f"Semantic filtering failed in streaming, using preliminary: {e}")
         refined_sources = preliminary_sources
+    
+    # Enrich refined sources with explanations (WHY this source supports the answer)
+    enriched_refined_sources = []
+    for source in refined_sources:
+        try:
+            explanation = await explain_source_relevance(
+                question=question,
+                answer=full_answer,
+                source_dict=source
+            )
+            source["explanation"] = explanation
+        except Exception as e:
+            logger.warning(f"Failed to generate explanation for {source.get('filename')}: {e}")
+            source["explanation"] = "This source supports the answer."
+        
+        enriched_refined_sources.append(source)
+    
+    refined_sources = enriched_refined_sources
 
-    # Yield refined sources (frontend will replace preliminary ones)
+    # Yield refined sources with explanations (frontend will replace preliminary ones)
     refined_payload = {
         "sources": refined_sources,
         "confidence": confidence_data["confidence"],

@@ -46,6 +46,17 @@ export default function SourceCard({ sources, onViewPDF }) {
                   </button>
                 )}
               </div>
+              {/* 💡 NEW: Show explanation of why this source matters */}
+              {s.explanation && (
+                <div className="mt-2 p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <p className="text-[var(--text-secondary)] text-xs leading-relaxed">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">💡 Why this matters:</span>
+                    {' '}
+                    {s.explanation}
+                  </p>
+                </div>
+              )}
+
               <p className={clsx(
                 'text-[var(--text-secondary)] leading-relaxed line-clamp-3',
                 'source-highlight rounded px-1 py-0.5'
