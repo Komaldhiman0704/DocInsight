@@ -806,9 +806,9 @@ async def stream_rag_chain(
             "source_count": 0,
             "ocr_sources": False,
         }
-        yield f"__SOURCES__{json.dumps(empty_sources_payload)}\\n"
-        yield "⚠️ An error occurred while processing the documents.\\n"
-        yield f"__SUGGESTIONS__{json.dumps([])}\\n"
+        yield f"__SOURCES__{json.dumps(empty_sources_payload)}\n"
+        yield "⚠️ An error occurred while processing the documents.\n"
+        yield f"__SUGGESTIONS__{json.dumps([])}\n"
         return
     
     context = format_docs(docs)

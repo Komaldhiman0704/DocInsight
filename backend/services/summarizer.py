@@ -33,7 +33,7 @@ async def generate_summary(file_path: str, filename: str) -> str:
         if file_ext == '.pdf':
             # Load first 5 pages from PDF
             loader = PyPDFLoader(file_path)
-            pages = await loader.aload()
+            pages = loader.load()  # ✅ FIX: PyPDFLoader.load() is sync, not aload()
             for page in pages[:5]:
                 text_content += page.page_content + "\n"
                 

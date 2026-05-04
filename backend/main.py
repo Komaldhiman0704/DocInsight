@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import os
 import logging
 
-from routers import chat, upload, documents, sessions
+from routers import chat, upload, documents, sessions, advanced
 from services.vector_store import shutdown_vectorstore
 
 # Configure logging
@@ -58,6 +58,7 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(chat.router,   prefix="/api", tags=["Chat"])
 app.include_router(documents.router, prefix="/api", tags=["Documents"])
 app.include_router(sessions.router, prefix="/api", tags=["Sessions"])
+app.include_router(advanced.router, prefix="/api", tags=["Advanced"])  # ✨ UPGRADE: New innovative features
 
 @app.get("/")
 def root():

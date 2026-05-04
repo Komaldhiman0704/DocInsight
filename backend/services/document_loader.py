@@ -111,7 +111,7 @@ def load_docx_file(file_path: str, filename: str) -> list[Document]:
             cleaned_text = clean_text(para.text)
             doc_obj = Document(
                 page_content=cleaned_text,
-                metadata={"page": para_idx + 1, "filename": filename}
+                metadata={"page": para_idx, "filename": filename}  # ✅ Use 0-indexed for consistency with PDF
             )
             documents.append(doc_obj)
     
@@ -138,7 +138,7 @@ def load_txt_file(file_path: str, filename: str) -> list[Document]:
             cleaned_text = clean_text(para.strip())
             doc_obj = Document(
                 page_content=cleaned_text,
-                metadata={"page": para_idx + 1, "filename": filename}
+                metadata={"page": para_idx, "filename": filename}  # ✅ Use 0-indexed for consistency with PDF
             )
             documents.append(doc_obj)
     
