@@ -1,0 +1,222 @@
+\documentclass[a4paper,12pt]{report}
+
+% ── PAGE LAYOUT (from project spec: L=1.5", R=1", T=1", B=1") ──────────────
+\usepackage[
+  left=1.5in,
+  right=1.0in,
+  top=1.0in,
+  bottom=1.0in
+]{geometry}
+
+% ── FONT: Times New Roman (project spec) ────────────────────────────────────
+\usepackage{mathptmx}
+
+% ── LINE SPACING: 1.5 lines (project spec) ──────────────────────────────────
+\usepackage{setspace}
+\onehalfspacing
+
+% ── JUSTIFICATION (project spec) ────────────────────────────────────────────
+\usepackage{ragged2e}
+\justifying
+
+% ── CORE PACKAGES ───────────────────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{amsmath}
+
+% ── HYPERLINKS ───────────────────────────────────────────────────────────────
+\usepackage[
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=black
+]{hyperref}
+
+% ── HEADER / FOOTER: page number right-aligned at footer (project spec) ─────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[R]{\thepage}
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyfoot[R]{\thepage}%
+}
+
+% ── CHAPTER FORMAT: Title 16 bold / chapter name 20 bold (project spec) ─────
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\bfseries}
+  {\fontsize{16}{18}\selectfont Chapter \thechapter}
+  {10pt}
+  {\fontsize{20}{24}\selectfont}
+\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+
+% ── SECTION: 14 bold (project spec subtitle 14 bold) ────────────────────────
+\titleformat{\section}
+  {\bfseries\fontsize{14}{16}\selectfont}
+  {\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+
+% ── SUBSECTION: 12 bold ──────────────────────────────────────────────────────
+\titleformat{\subsection}
+  {\bfseries\fontsize{12}{14}\selectfont}
+  {\thesubsection}{1em}{}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+
+% ── CITATION COMMAND  [n] style (IEEE) ──────────────────────────────────────
+\newcommand{\citenum}[1]{[#1]}
+
+% ════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── ROMAN NUMBERING for front matter ────────────────────────────────────────
+\pagenumbering{roman}
+
+% ════════════════ TITLE PAGE ════════════════════════════════════════════════
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+
+\vspace*{0.26cm}
+{\Large\bfseries
+DocInsight: Context-Aware Document Intelligence\\[0.28cm]
+using Retrieval-Augmented Generation}
+
+\vspace{0.8cm}
+{\large\bfseries INDUSTRIAL PROJECT}\\[0.2cm]
+{\normalsize (CSEE-812P)}\\[0.1cm]
+{\normalsize Report}
+
+\vspace{0.28cm}
+Submitted to the\\[0.2cm]
+{\bfseries Department of Computer Science \& Engineering (AI \& ML)}\\[0.1cm]
+{\bfseries Jawaharlal Nehru Government Engineering College, Sundernagar (H.P.)}
+
+\vspace{0.6cm}
+In partial fulfilment of the requirement for the degree of\\[0.2cm]
+{\bfseries Bachelor of Technology in Computer Science \& Engineering (AI \& ML)}
+
+\vspace{0.8cm}
+{\normalsize Submitted by}
+
+\vspace{0.4cm}
+\begin{tabular}{ll}
+\textbf{Name:}    & Komal \\
+\textbf{Roll No.:}& 23020102001 \\
+\end{tabular}
+
+\vspace{0.88cm}
+Under the supervision of\\[0.2cm]
+{\bfseries Prof. Varun Dutt}\\
+Associate Professor\\
+School of Computing and Electrical Engineering
+
+\vspace{0.88cm}
+\includegraphics[width=3.5cm]{logo.jpeg}
+
+\vspace{0.78cm}
+{\bfseries Jawaharlal Nehru Government Engineering College}\\
+Sundernagar, Himachal Pradesh
+
+\vspace{0.4cm}
+{\bfseries Session: 2025--2026}
+\end{center}
+\end{titlepage}
+
+% ════════════════ CERTIFICATE PAGE (leave blank — student fills manually) ═══
+% \input{certificate}   % Uncomment and add your own certificate page
+
+% ════════════════ ACKNOWLEDGEMENT ═══════════════════════════════════════════
+\chapter*{Acknowledgement}
+\addcontentsline{toc}{chapter}{Acknowledgement}
+
+I express my sincere gratitude to \textbf{Prof. Varun Dutt}, Associate Professor,
+School of Computing and Electrical Engineering, for his invaluable guidance,
+continuous encouragement, and constructive feedback throughout the development of
+this project.
+
+I am grateful to the \textbf{Department of Computer Science \& Engineering (AI \& ML)},
+Jawaharlal Nehru Government Engineering College, Sundernagar, for providing the
+academic environment and resources that made this work possible.
+
+I would also like to thank the open-source communities behind LangChain, ChromaDB,
+FastAPI, and the HuggingFace Sentence Transformers library, whose publicly available
+tools formed the technical foundation of DocInsight.
+
+\vspace{1cm}
+\begin{flushright}
+\textbf{Komal}\\
+Roll No.: 23020102001\\
+B.Tech CSE (AI \& ML), 4th Year\\
+Session: 2025--2026
+\end{flushright}
+
+% ════════════════ TABLE OF CONTENTS ══════════════════════════════════════════
+\tableofcontents
+\addcontentsline{toc}{chapter}{Table of Contents}
+
+% ════════════════ LIST OF FIGURES ════════════════════════════════════════════
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}
+
+% ════════════════ LIST OF TABLES ═════════════════════════════════════════════
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+
+% ════════════════ ABSTRACT ═══════════════════════════════════════════════════
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+DocInsight is a full-stack, privacy-preserving document intelligence platform that
+enables natural language question answering over user-uploaded documents using the
+Retrieval-Augmented Generation (RAG) architecture. The system addresses three
+fundamental limitations of standalone large language models: knowledge confined to
+training data, susceptibility to hallucination, and absence of verifiable source
+attribution.
+
+The platform integrates a FastAPI backend, LangChain RAG orchestration, ChromaDB
+local vector store, and a React single-page application frontend. Documents in PDF,
+DOCX, and TXT formats are ingested, chunked into 1,000-character segments with
+200-character overlap, and embedded locally using the \texttt{all-MiniLM-L6-v2}
+sentence transformer model (384-dimensional vectors). At query time, the top-$k$
+semantically relevant chunks are retrieved via cosine similarity and provided as
+grounded context to a streaming large language model, ensuring every response is
+traceable to specific source pages.
+
+Key features of the implemented system include real-time token streaming via
+Server-Sent Events, clickable source citations with direct PDF viewer navigation,
+persistent session management, automatic document summarisation, chat export to PDF,
+and browser-based voice input. The local-first architecture ensures that no
+document content is transmitted to external servers during the embedding or retrieval
+stages, satisfying data privacy and sovereignty requirements.
+
+System testing confirmed reliable operation across all supported file formats, correct
+source attribution following a page indexing normalisation fix, and sub-5-second
+end-to-end query latency under typical conditions. The project demonstrates that
+production-grade document intelligence, combining explainability, privacy, and
+verifiable source grounding, can be achieved using entirely open-source, locally
+deployable components.
+
+\vspace{0.5cm}
+\noindent\textbf{Keywords:} Retrieval-Augmented Generation, Document Intelligence,
+Large Language Models, Semantic Search, Privacy-Preserving AI, Vector Database,
+Source Attribution, ChromaDB, LangChain.
+
+% ════════════════ ARABIC NUMBERING from Chapter 1 ═══════════════════════════
+\pagenumbering{arabic}
+
+% ════════════════ CHAPTERS ═══════════════════════════════════════════════════
+\input{chapter1}   % Introduction
+\input{chapter2}   % Literature Review
+\input{chapter3}   % Plan of Work
+\input{chapter4}   % Results and Discussion
+\input{chapter5}   % Conclusion
+\input{chapter6}   % References
+
+\end{document}

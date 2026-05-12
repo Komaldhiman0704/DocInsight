@@ -1,0 +1,145 @@
+% ════════════════════════════════════════════════════════════════════════════
+% CHAPTER 5: CONCLUSION
+% Save as conclusion.tex and add \input{conclusion} to main.tex
+% ════════════════════════════════════════════════════════════════════════════
+
+\chapter{Conclusion}
+
+\section{Project Summary}
+
+This project involved the design, development, and testing of \textbf{DocInsight}
+--- a full-stack document intelligence platform built on the
+Retrieval-Augmented Generation (RAG) architecture. The system was created to
+solve a practical problem: standard large language models (LLMs) cannot reliably
+answer questions from specific user documents because they have no access to that
+content and frequently generate incorrect or fabricated responses.
+
+DocInsight solves this by retrieving relevant sections directly from uploaded
+documents and passing them as context to the LLM, so every answer is grounded in
+actual document content. The system integrates a \textbf{FastAPI} backend,
+\textbf{LangChain} RAG pipeline, \textbf{ChromaDB} vector store, and a
+\textbf{React} frontend into a single locally hosted web application. Users can
+upload documents, ask questions in natural language, receive streamed answers, and
+verify every cited source --- all within one browser window. All document storage
+and embedding computation happens locally; no original document is sent to any
+external server.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Key Achievements}
+
+The following features were fully implemented and verified in the deployed system:
+
+\begin{itemize}
+    \item \textbf{Document Upload and Processing:} Drag-and-drop upload for
+    PDF, DOCX, and TXT files with file-type and size validation.
+
+    \item \textbf{Text Extraction and Chunking:} Automatic text extraction
+    followed by recursive character-based chunking (1{,}000 characters,
+    200-character overlap) to preserve context across chunk boundaries.
+
+    \item \textbf{Local Semantic Embedding:} Each chunk is embedded using
+    sentence-transformers/all-MiniLM-L6-v2, producing 384-dimensional
+    vectors stored persistently in ChromaDB --- no reprocessing needed on restart.
+
+    \item \textbf{RAG Query Pipeline:} On each user query, the top-$k$ most
+    semantically relevant chunks are retrieved via cosine similarity and passed
+    to the LLM, which is constrained to answer only from that context.
+
+    \item \textbf{Streaming Responses:} LLM answers are streamed token-by-token
+    via Server-Sent Events (SSE), so the user begins reading the response
+    immediately without waiting for full generation.
+
+    \item \textbf{Source Attribution:} Every answer includes clickable citations
+    showing the source filename and page number. Clicking navigates the integrated
+    PDF viewer directly to the cited page for instant verification.
+
+    \item \textbf{Session Management:} Chat sessions are persisted as JSON files,
+    supporting creation, renaming, deletion, and resumption across restarts.
+
+    \item \textbf{Document Summaries:} An automatic summary card is generated
+    for each uploaded document and displayed in the sidebar.
+
+    \item \textbf{Chat Export:} Complete chat sessions can be exported as
+    downloadable PDF reports.
+
+    \item \textbf{Voice Input:} Browser-based speech input is supported for
+    hands-free query submission.
+
+    \item \textbf{Flexible LLM Backends:} The system supports Groq, Ollama,
+    and OpenAI as interchangeable inference providers via environment configuration.
+
+    \item \textbf{Page Indexing Fix:} A critical off-by-one error in page
+    citation --- caused by a mismatch between Python's zero-based indexing and
+    the one-based page numbering expected by users --- was identified and resolved
+    by normalising page indices at the point of document ingestion.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Key Outcomes}
+
+The most important outcome of this project is a system that behaves
+\textit{honestly} within its own limitations. When a query cannot be answered
+from the uploaded documents, DocInsight explicitly says so rather than generating
+a confident but unsupported answer. This is the defining advantage of the RAG
+approach: by restricting the LLM strictly to retrieved context, the system
+eliminates the hallucination problem that makes standalone LLMs unreliable for
+document-specific tasks.
+
+The semantic embedding layer also proved effective in practice. Because user
+queries and document text rarely use identical vocabulary, cosine similarity over
+dense vectors correctly retrieves relevant chunks even when exact keywords do not
+match --- something traditional keyword search cannot achieve.
+
+From a usability standpoint, the combination of streaming responses, a
+three-panel interface (sidebar, chat, PDF viewer), clickable source citations,
+and persistent sessions produces a coherent research workflow. Users can upload
+a document, get an immediate summary, ask detailed questions, and verify any
+answer against its source page without switching applications.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations}
+
+The following are genuine constraints of the current implementation:
+
+\begin{itemize}
+    \item \textbf{No support for scanned PDFs:} The \texttt{pypdf} library
+    extracts embedded selectable text only. Scanned or image-based PDFs produce
+    empty extraction results and cannot be queried.
+
+    \item \textbf{Text-only extraction:} Tables are extracted as unstructured
+    plain text, losing their grid layout. Images, figures, charts, and equations
+    rendered as graphics are silently discarded.
+
+    \item \textbf{External API dependency:} The default Groq inference provider
+    requires an internet connection and a valid API key, subject to rate limits.
+    If the service is unavailable, the chat feature stops working. The Ollama
+    local fallback is available but requires higher hardware resources.
+
+    \item \textbf{No user authentication:} The system is designed for single-user
+    local use. There is no login, access control, or user isolation, making it
+    unsuitable for shared or multi-user deployment without additional infrastructure.
+
+    \item \textbf{Single-process deployment:} The backend runs as a single
+    Uvicorn process, limiting practical concurrency to approximately 10--20 users
+    on an 8\,GB machine. Larger deployments require containerised, load-balanced
+    infrastructure.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Final Remarks}
+
+DocInsight demonstrates that a reliable, privacy-respecting document
+question-answering system can be built using freely available open-source
+components --- without proprietary infrastructure or high computational cost.
+By grounding every LLM response in retrieved document content and making the
+source of each answer directly verifiable, the system achieves its central
+design goal: enabling users to query their own documents with confidence in
+the accuracy and traceability of the results.
+
+The project involved integrating several independent technical layers ---
+document parsing, semantic embedding, vector retrieval, LLM inference,
+streaming communication, and interactive frontend rendering --- into a single
+functional application. The successful resolution of real integration defects,
+such as the page indexing mismatch, and the end-to-end operation of all
+implemented features confirm that the RAG architecture is both practically
+implementable and effective for document intelligence at this scale.

@@ -7,6 +7,7 @@ REM ==================== CONFIGURATION ====================
 set BACKEND_PORT=8000
 set FRONTEND_PORT=5173
 set LOG_FILE=startup_log.txt
+set BACKEND_PY=backend\venv\Scripts\python.exe
 
 cd /d "%~dp0"
 
@@ -83,10 +84,9 @@ if not exist "backend\venv" (
     echo    Creating Python virtual environment...
     cd backend
     python -m venv venv >>"..\%LOG_FILE%" 2>&1
-    call venv\Scripts\activate.bat
     echo    Installing Python dependencies...
-    pip install --quiet --upgrade pip setuptools wheel >>"..\%LOG_FILE%" 2>&1
-    pip install -q -r requirements.txt >>"..\%LOG_FILE%" 2>&1
+    call venv\Scripts\python.exe -m pip install --quiet --upgrade pip setuptools wheel >>"..\%LOG_FILE%" 2>&1
+    call venv\Scripts\python.exe -m pip install -q -r requirements.txt >>"..\%LOG_FILE%" 2>&1
     cd ..
 )
 
@@ -131,7 +131,7 @@ echo  ============================================================
 echo.
 
 echo  [1/2] Starting Backend on port %BACKEND_PORT%
-start "DocInsight Backend" cmd /k "cd /d backend && venv\Scripts\activate.bat && python -m uvicorn main:app --reload --port %BACKEND_PORT%"
+start "DocInsight Backend" cmd /k "cd /d backend && venv\Scripts\python.exe -m uvicorn main:app --reload --port %BACKEND_PORT%"
 timeout /t 5 /nobreak >nul
 
 echo  [2/2] Starting Frontend on port %FRONTEND_PORT%

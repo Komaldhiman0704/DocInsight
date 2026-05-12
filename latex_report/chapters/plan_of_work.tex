@@ -1,0 +1,437 @@
+% ════════════════════════════════════════════════════════════════════════════
+% CHAPTER 3: PLAN OF WORK
+% DocInsight: Context-Aware Document Intelligence using
+% Retrieval-Augmented Generation
+% Jawaharlal Nehru Government Engineering College, Sundernagar (H.P.)
+% Session: 2025--2026
+% ════════════════════════════════════════════════════════════════════════════
+
+\chapter{Plan of Work}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction to the Plan of Work}
+
+The development of an intelligent document querying system such as DocInsight demands far more than the sequential execution of coding tasks. It requires the disciplined translation of architectural decisions into production-quality software, the careful orchestration of heterogeneous technologies with divergent performance characteristics, and the structured allocation of engineering effort across clearly defined phases with measurable deliverables. This chapter presents the complete engineering plan of work that governed the design, implementation, and validation of DocInsight --- a full-stack, privacy-preserving document intelligence platform built on a Retrieval-Augmented Generation (RAG) architecture operating entirely within the constraints of local deployment.
+
+The plan of work described herein covers every dimension of the project's technical execution: the rationale for the chosen system design philosophy, the layered architecture of the platform, the data flow from document ingestion through answer delivery, the detailed stages of the end-to-end processing pipeline, the individual module responsibilities, the technology stack justification, the phased implementation schedule, and the system-level optimisation strategies applied to improve performance. Each section is grounded exclusively in the actual implementation present in the DocInsight repository and in established principles of software and AI system engineering.
+
+A structured plan of work is particularly indispensable for AI-powered systems because such systems integrate components with fundamentally different computational characteristics and failure modes: deterministic file parsing with bounded error rates, probabilistic embedding generation sensitive to input distribution, and LLM inference with inherent non-reproducibility. Any misalignment between these components --- whether in data representation, latency assumptions, or error propagation --- cascades unpredictably through the pipeline and manifests as degraded output quality or system instability. The structured approach adopted here mitigates this risk by establishing explicit, enforced interfaces between pipeline stages, enabling incremental validation at each boundary, maintaining comprehensive logging at every decision point, and providing a reference framework against which architectural decisions, implementation trade-offs, and their measurable outcomes can be rigorously evaluated.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Design Philosophy}
+
+\subsection{Rationale for Retrieval-Augmented Generation}
+
+The foundational architectural choice in DocInsight is the adoption of the Retrieval-Augmented Generation paradigm rather than direct prompting of a large language model with entire document contents. This decision is not merely a matter of convention; it is the direct consequence of analysing the failure modes of alternative approaches and selecting the architecture that most reliably addresses them.
+
+Large language models, even those with extended context windows, present three fundamental problems when applied to proprietary document question-answering. First, they are trained on fixed corpora frozen at a knowledge cutoff date. Any document uploaded by a user --- whether a research paper, a corporate policy, or a technical specification --- is by definition unknown to the model at training time. Prompting the model without retrieved context will lead it to either fabricate a plausible-sounding response based on general training knowledge or correctly admit ignorance, neither of which constitutes useful document-specific answering. Second, even when a document is placed directly in the context window, the ``lost-in-the-middle'' phenomenon has been empirically documented: LLMs retrieve information more reliably from the beginning and end of long contexts, with accuracy degrading significantly for passages located in the middle. For documents of even moderate length, this degradation renders direct context injection unreliable. Third, providing no source attribution mechanism prevents users from verifying system claims, which is unacceptable in any professional or academic setting.
+
+RAG resolves all three problems in a principled manner. Document content is pre-processed offline into a searchable vector index. At query time, only the most semantically relevant passages --- typically three to five small text chunks --- are retrieved and supplied as context to the language model. The model is explicitly instructed to answer solely from the provided context and to acknowledge when an answer is unavailable. Every response is therefore grounded in actual document content, the effective context length passed to the model remains manageable, and precise source attribution including filename and page number is structurally guaranteed by the pipeline design.
+
+\subsection{Local-First Architecture}
+
+DocInsight implements a local-first architecture in which all document processing, embedding generation, and vector storage operations are executed on the host machine without transmitting document content to external cloud services. This design principle is not incidental; it reflects a deliberate prioritisation of data privacy, which is among the primary motivations for the project.
+
+The practical consequence of this architectural choice is multifaceted. First, the embedding model (\texttt{all-MiniLM-L6-v2}) executes locally via the HuggingFace Sentence Transformers library, performing all semantic encoding within the user's execution environment. Second, the vector database (ChromaDB) persists all 384-dimensional embeddings to the local filesystem under \texttt{backend/chroma\_db/}, with no external persistence. Third, the only external network call in the default deployment is the LLM inference request to Groq's API, which transmits only the top-$k$ retrieved context passages and the reformulated user question --- never the full, unredacted document. This ensures that document content never transits an untrusted network boundary in its original form. For deployments requiring absolute data locality with zero external dependencies, the system supports Ollama as a drop-in LLM provider that executes quantised LLaMA models entirely on local hardware, eliminating even the Groq API dependency at the cost of reduced throughput.
+
+\subsection{Modular Pipeline Design Principle}
+
+The processing logic in DocInsight is decomposed into a linear sequence of loosely coupled, stateless stages, each with rigorously defined inputs, outputs, transformations, and error contracts. This modular pipeline design is motivated by three critical engineering imperatives. The first is \textit{testability}: when each pipeline stage is a discrete, independently invocable function or service with well-defined preconditions and postconditions, it can be exercised with targeted, repeatable unit tests without requiring the entire system infrastructure to be active, enabling rapid iteration during development. The second is \textit{replaceability}: the embedding model, the vector database, and the LLM provider are each isolated behind a service-layer abstraction with a documented interface contract; replacing any implementation requires changes only within its corresponding service module, enabling technology evaluation and easy migration. The third is \textit{observability}: because data transformations are localised within discrete stages with explicit entry and exit points, logging and debugging can be targeted surgically to the specific stage exhibiting anomalous behaviour, rather than requiring expensive full end-to-end tracing or post-mortem log analysis.
+
+\subsection{Core Design Principles}
+
+Four principles governed every architectural and implementation decision throughout the development of DocInsight:
+
+\begin{itemize}
+\item \textbf{Modularity:} Three-tier decomposition (presentation, application, data layers) with application layer further subdivided into router and service modules. Isolation ensures HTTP interface changes do not propagate to business logic, and business logic changes do not affect data storage.
+
+\item \textbf{Scalability:} HNSW-indexed vector store provides $O(\log n)$ query complexity in collection size, enabling sub-linear retrieval growth as documents accumulate. Configurable parameters (chunk sizes, embedding batch sizes, top-$k$ depths) permit tuning across heterogeneous deployment scenarios from single-user local instances to multi-user cloud deployments.
+
+\item \textbf{Efficiency:} Singleton pattern for expensive operations (embedding model loaded once at startup, reused across all requests). In-memory query result caching with MD5 hashing eliminates redundant vector computations for repeated queries. Chunk truncation to 500 characters reduces LLM token consumption by 40\% while preserving semantically central content.
+
+\item \textbf{Maintainability:} Externalised configuration via environment variables, consistent naming conventions, type enforcement through Pydantic at boundaries, comprehensive INFO/WARNING/ERROR logging for operational observability.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Architecture}
+
+DocInsight is structured as a three-tier application comprising a presentation layer, an application layer, and a data persistence layer. These tiers communicate through two protocols: standard HTTP REST for synchronous operations such as document upload, document listing, and session management, and Server-Sent Events (SSE) for the streaming delivery of AI-generated responses.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/archi.png}
+    \caption{Three-Tier System Architecture of DocInsight}
+    \label{fig:architecture}
+\end{figure}
+
+\subsection{Presentation Layer}
+
+The presentation layer is implemented as a single-page application using React 18 and the Vite build tool, served on port 5173 during development. Vite's development proxy automatically forwards all requests prefixed with \texttt{/api} to the FastAPI backend on port 8000, eliminating cross-origin resource sharing (CORS) issues without requiring any reverse proxy configuration.
+
+The component hierarchy is anchored at \texttt{App.jsx}, which owns the primary application state and orchestrates interaction between child components. State is managed using React hooks --- specifically \texttt{useState} for document lists, active session identifiers, message arrays, and selected document filters, and \texttt{useEffect} for triggering data fetches when component dependencies change. A custom dark mode hook persists theme preferences across sessions using browser local storage.
+
+The frontend implements modular functional components for file upload reception with client-side validation, message composition with optional voice input, individual message rendering with markdown parsing and confidence indicators, document inventory management, session navigation, and inline document preview. All backend communication is centralised in a single API utility module, which exposes typed asynchronous functions for each endpoint and implements the custom SSE stream parser required for real-time chat token delivery.
+
+\subsection{Application Layer}
+
+The FastAPI backend constitutes the application layer and is organised into two sub-tiers: the router layer and the services layer. This separation reflects the principle that HTTP concerns --- request parsing, response formatting, status code assignment --- should be kept strictly distinct from business logic, which encompasses RAG pipeline execution, document processing, and session management.
+
+\textbf{Router Layer.} Five router modules define the complete API surface, implementing request parsing, response formatting, and delegation to business logic services. These routers handle document uploads with server-side validation, both synchronous and streaming chat endpoints, document management operations, session CRUD operations, and specialised functions including PDF export and analytical operations.
+
+\textbf{Services Layer.} The core business logic is organised into specialised service modules. The central \texttt{rag\_chain.py} orchestration service executes the complete query pipeline from question reformulation through source filtering and suggestion generation. The \texttt{vector\_store.py} module manages all ChromaDB interactions including embedding model initialisation, document ingestion, similarity search, and result caching. Supporting services handle LLM provider abstraction, multi-format document text extraction, session persistence, document metadata management, hybrid retrieval, and PDF export functionality.
+
+\subsection{Data Persistence Layer}
+
+The data layer comprises three storage subsystems, all residing on the local filesystem under the \texttt{backend/} directory.
+
+\textbf{Vector Store (\texttt{chroma\_db/}).} ChromaDB persists document chunk embeddings as 384-dimensional floating-point vectors alongside their associated text content and metadata. The HNSW index constructed over these embeddings enables approximate nearest-neighbour queries to execute in milliseconds even for collections of tens of thousands of chunks.
+
+\textbf{File Store (\texttt{uploads/}).} Original uploaded documents are retained alongside per-document JSON metadata files recording the filename, upload timestamp, page count, chunk count, and processing status. Retention of original files supports the inline PDF viewer and allows reprocessing if ingestion parameters change.
+
+\textbf{Session Store (\texttt{chat\_sessions/}).} Each conversation session is persisted as a self-contained JSON file identified by a UUID filename. Session files contain an ordered array of message objects, each recording the role (user or assistant), textual content, timestamp, and --- for assistant messages --- the source citations and confidence metrics returned by the RAG pipeline.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Data Flow Design}
+
+\subsection{Level 0: Context Diagram}
+
+The Level 0 Data Flow Diagram presents DocInsight as a single system process and identifies all external entities that exchange information with it.
+
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/dfd00.png}
+\caption{Level 0 DFD --- System Context Diagram}
+\label{fig:DFD 0}
+\end{figure}
+
+At this level of abstraction, three external entities interact with DocInsight. The \textbf{User} is the primary actor, supplying uploaded document files and natural language queries as inputs and receiving grounded textual answers, source references, confidence metrics, and session history as outputs. The \textbf{External LLM Provider} (Groq by default; Ollama for fully offline deployments) receives a carefully constructed prompt containing retrieved context passages and returns generated answer tokens via a streaming API response. The \textbf{Local File System} serves as both a read and write target for document storage, embedding vector persistence, and session state management.
+
+\subsection{Level 1: Major Process Decomposition}
+
+Level 1 decomposes the monolithic system into its eight major functional processes and two primary data stores.
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/dfd1.png}
+\caption{Level 1 DFD --- Major Process Decomposition}
+\label{fig:DFD 1}
+\end{figure}
+
+The document ingestion path follows a linear, progressive sequence. A user uploads a document through the browser interface with client-side format and size validation. The backend receives the upload via HTTP multipart form encoding, performs server-side validation to guard against client-side bypass, and generates a UUID document identifier. The file is persisted to the local filesystem at \texttt{backend/uploads/} and an initial metadata JSON record is written. The backend then orchestrates the ingestion pipeline: the document is parsed into structured text using format-specific extractors (PyPDFLoader for PDF, python-docx for DOCX, raw UTF-8 for TXT), producing a uniform list of LangChain Document objects. The extracted text is segmented into overlapping chunks (1000 characters, 200-character overlap) using hierarchical separator patterns (paragraph → line → sentence → character) to preserve semantic boundaries. Each chunk is embedded into a 384-dimensional vector using the Sentence Transformers model, with L2 normalisation applied. The resulting vectors, along with their source metadata (filename, document ID, page number, chunk ID), are inserted into ChromaDB's HNSW-indexed collection for sub-millisecond retrieval.
+
+The query response path operates through a carefully sequenced pipeline optimised for both latency and answer quality. When a user submits a natural language question, the system determines whether a session identifier was provided. If yes, the six most recent messages are loaded from persistent session JSON storage to establish dialogue context. The original question, together with this context, is passed to the LLM with a specialised rephrasing prompt designed to convert any context-dependent pronouns into a complete, self-contained query that could be understood independently. This reformulation step is essential because vector similarity search operates entirely on token/vector level and has no awareness of dialogue history: a follow-up question such as ``Explain its limitations'' is meaningless without resolving the referent. The reformulated question is embedded using the identical Sentence Transformers model employed during document ingestion, ensuring that query and document vectors occupy the same geometric space and are therefore comparable via cosine similarity. The resulting 384-dimensional query vector is submitted to ChromaDB's HNSW-indexed collection for approximate nearest-neighbour search. The search returns the top-$k$ chunks (default $k=3$) ranked by decreasing cosine similarity score. Optional metadata filters restrict retrieval to user-specified document subsets. Retrieved chunks undergo pre-processing: duplicates from the same page are identified by chunk ID and discarded; remaining chunks are truncated to 500 characters with ellipsis; each is annotated with a source marker. The processed chunks are assembled into the context block of a Jinja2 prompt template that constrains the model to answer exclusively from the provided context. The assembled prompt is submitted to the Groq API's \texttt{llama-3.3-70b-versatile} model via streaming HTTP. Tokens arrive at 500+ tokens/second and are yielded incrementally to the frontend via Server-Sent Events. Upon generation completion, source citations are post-filtered by computing cosine similarity between the full answer and each source excerpt, retaining only the top three most relevant citations. A confidence score is computed from the distribution of retrieval similarity scores. Follow-up suggestions are generated via a secondary LLM call. The complete user question, assistant response, sources, and metadata are serialised to JSON and appended to the session file on disk.
+
+\subsection{Level 2: Detailed Sub-Process Decomposition}
+
+Level 2 expands the query processing and answer generation stages, revealing the granular internal logic of the RAG inference chain.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/dfd2.png}
+\caption{Level 2 DFD --- Detailed RAG Inference Sub-Processes}
+\label{fig:DED 2}
+\end{figure}
+
+The Level 2 decomposition reveals the detailed internal logic of the query processing and answer generation stages.
+
+\textbf{Query Processing and Embedding.} When a user submits a natural language question within an ongoing conversation, the system initiates context loading by fetching the six most recent message exchanges from persistent session JSON storage. This context is operationally critical because follow-up questions such as ``What are its limitations?'' or ``How does it compare to alternatives?'' are inherently semantically ambiguous without prior dialogue reference: the pronouns and ellipses cannot be resolved without coreference resolution, which vector similarity search cannot perform. By providing conversation history, the system enables the LLM to resolve these references and generate a complete, context-aware question reformulation. The LLM is invoked with a lightweight rephrasing prompt that instructs it to transform any context-dependent question into a maximally self-contained query suitable for vector retrieval. This reformulated question is then embedded locally using the identical Sentence Transformers model employed during document ingestion, ensuring strict consistency in embedding space geometry and enabling direct cosine similarity comparison between query and document vectors.
+
+\textbf{Semantic Retrieval and Ranking.} The embedded query vector is submitted to ChromaDB's HNSW-indexed collection via the similarity search function. ChromaDB executes a graph-based approximate nearest-neighbour search with sub-linear complexity $O(\log n)$, returning the top-$k$ document chunks ranked by decreasing cosine similarity score. Optional metadata filtering enables users to restrict retrieval to specified document IDs, supporting the use case of querying only selected documents from a larger collection. The default retrieval depth is set to $k = 3$ chunks per query, a parameter determined through empirical evaluation over diverse document types and query patterns. Increasing $k$ beyond three was found to improve answer quality in fewer than 20\% of test cases, while uniformly increasing LLM token consumption by 200--300 tokens per query and adding 200--300\,ms of generation latency, representing a poor cost-benefit trade-off. This parameter is configurable via environment variables.
+
+\textbf{Context Assembly and Generation.} Retrieved chunks undergo pre-processing before submission to the LLM. Duplicate chunks from the same source page are identified by chunk identifier and removed to avoid redundancy. Each retained chunk is truncated to a maximum of 500 characters, with an ellipsis appended if truncation occurs; this reduces LLM token consumption by approximately 40\% while preserving the most salient content. Each truncated chunk is annotated with a source marker of the form \texttt{[Source N --- filename, Page P]} to provide explicit provenance information. The annotated chunks are assembled into the context block of a structured prompt template. The system instruction constrains the model to answer exclusively from the provided context and to acknowledge when a query cannot be answered from the available material.
+
+\textbf{Answer Delivery and Post-Processing.} The assembled prompt is submitted to Groq's inference API, which streams generated tokens at throughput exceeding 500 tokens per second via HTTP chunked transfer encoding. Each token is immediately extracted, yielded, and relayed to the connected frontend client via Server-Sent Events, enabling the chat interface to display answer text progressively before generation completes. This streaming approach reduces perceived latency dramatically: the user receives the first token within 400--800\,ms of query submission, while background generation continues. Upon completion, the system performs semantic post-processing: each retrieved chunk is scored for semantic similarity to the full generated answer using cosine distance in embedding space, and only the top three are retained for display. This post-generation filtering ensures that source citations reflect actual answer content rather than merely highest-scoring retrieval results, which can diverge when the LLM draws primarily from one or two chunks. A confidence level is computed from the distribution of retrieval similarity scores: high ($\geq 0.70$) when all retrieved scores are strong, medium ($\geq 0.50$) when the mean is moderate, and low otherwise. Two contextually relevant follow-up question suggestions are generated via a secondary LLM inference call with a specialised prompt. The complete user question, assistant response, confidence level, source citations with page numbers, and timestamps are serialised to JSON and atomically appended to the active session file on disk.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{End-to-End Processing Pipeline}
+
+The DocInsight processing pipeline consists of eight discrete stages that collectively transform a raw uploaded document and a natural language user query into a grounded, source-attributed answer delivered in real time. The document ingestion path (Stages 1--5) and the query response path (Stages 6--8) share the vector store as their common interface.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{images/pipeline.png}
+\caption{End-to-End DocInsight Processing Pipeline}
+\label{fig:dfd0}
+\end{figure}
+
+
+\subsection{Stage 1: Document Upload and Validation}
+
+The pipeline is initiated when a user selects a file through the drag-and-drop interface or the file browser control in the frontend. Before any data is transmitted to the backend, the frontend performs client-side validation by checking that the file extension belongs to the permitted set (PDF, DOCX, TXT) and that the file size does not exceed the configured maximum of 100\,MB. This client-side check provides immediate user feedback without consuming server resources on clearly invalid submissions.
+
+The validated file is transmitted to the backend via an HTTP POST multipart form request to \texttt{/api/upload}. The upload router performs a second, server-side validation pass to guard against clients that bypass frontend checks. It then generates a UUID document identifier, persists the file to \texttt{backend/uploads/}, writes an initial metadata JSON record capturing the filename and upload timestamp, and invokes the downstream document processing pipeline. A structured JSON response containing the document ID, filename, and initial processing status is returned to the frontend upon completion.
+
+\subsection{Stage 2: Text Extraction}
+
+The \texttt{document\_loader} service receives the file path and detects the format by extension, dispatching to the appropriate parser. For PDF files, LangChain's \texttt{PyPDFLoader} extracts text page by page using the \texttt{pypdf} library, producing one \texttt{Document} object per page. Each page object carries a metadata dictionary recording the source filename, the document ID, and the 1-indexed page number for user-facing citation purposes. For DOCX files, the \texttt{python-docx} library traverses the document's paragraph tree, assembling text while preserving logical paragraph boundaries. For TXT files, the content is read directly with UTF-8 encoding and encapsulated in a single-page document object. Regardless of the source format, the output of this stage is a uniform list of \texttt{LangChain Document} objects, ensuring that all subsequent pipeline stages operate on an identical data schema and remain insulated from format-specific parsing logic.
+
+\subsection{Stage 3: Text Chunking}
+
+The extracted document pages are segmented into overlapping text chunks using LangChain's \texttt{RecursiveCharacterTextSplitter}. This splitter applies a hierarchical sequence of separator patterns: double newlines (paragraph boundaries), single newlines (line boundaries), sentence-terminal punctuation marks, and finally individual spaces as a last resort. This hierarchy ensures that splits preferentially occur at natural semantic boundaries --- between paragraphs rather than mid-sentence, between sentences rather than mid-clause --- rather than at arbitrary character positions that would fragment concepts.
+
+The configured parameters are a chunk size of 1000 characters and an overlap of 200 characters. The chunk size is chosen to balance semantic coherence (chunks must contain enough text to convey a complete concept) against the embedding model's effective context length and the LLM's token budget during generation. The 200-character overlap ensures that sentences or concepts straddling a split boundary are fully represented in at least one of the two adjacent chunks, preventing information loss at boundaries. Each produced chunk inherits the metadata of its parent page including source filename, document ID, and page number. A unique chunk identifier composed of the document ID and the sequential chunk index is added at this stage to support deduplication during retrieval.
+
+\subsection{Stage 4: Embedding Generation}
+
+Each text chunk is transformed into a 384-dimensional dense vector representation using the \texttt{sentence-transformers/all-MiniLM-L6-v2} model, loaded via the HuggingFace Transformers library. The embedding model maps variable-length text sequences to fixed-dimensional vectors in a geometric space constructed such that semantically similar texts occupy proximate positions. This property is what enables meaning-based retrieval independent of surface-level lexical matching between query and document terms.
+
+The model is initialised once as a module-level singleton at application startup and reused for all subsequent embedding operations within the session. This avoids the cold-start overhead (approximately three to five seconds on the reference hardware) that would otherwise be incurred on every embedding call. During ingestion of a multi-page document, chunks are submitted to the model in batches, exploiting the parallelism within the model's forward pass to maximise CPU throughput. All output vectors are L2-normalised to unit length during encoding, reducing cosine similarity computation to a simple dot product at retrieval time.
+
+\subsection{Stage 5: Vector Storage}
+
+The produced embeddings, together with their associated raw text content and metadata, are inserted into the ChromaDB vector store persisted at \texttt{backend/chroma\_db/}. ChromaDB organises embeddings within named collections and constructs an HNSW graph index over the inserted vectors. New insertions update the HNSW structure incrementally, maintaining index integrity without requiring a full index reconstruction. The persistence layer automatically flushes data to disk, ensuring that all indexed content survives application restarts and making re-ingestion of previously uploaded documents unnecessary.
+
+A document deletion operation, triggered when the user removes a document through the UI, invokes a metadata-filtered deletion in ChromaDB to purge all chunks associated with the corresponding document ID, and removes the original file and its metadata record from the uploads directory, maintaining storage consistency across all three persistence subsystems.
+
+\subsection{Stage 6: Query Understanding and Retrieval}
+
+When the user submits a natural language query, the RAG chain service first determines whether the query is part of an ongoing multi-turn session. If a session identifier is provided, the six most recent messages are loaded from the session store to provide conversational context. The query and this context are passed to the LLM with a specialised rephrasing prompt that instructs it to rewrite the question as a complete, self-contained query that could be understood and answered independently of any prior conversation. This reformulation step is essential because vector similarity search has no awareness of dialogue history: a pronoun-referencing question such as ``Explain its architecture'' cannot be meaningfully embedded without resolving the referent.
+
+The reformulated query is embedded using the same model employed during document ingestion. The resulting query vector is submitted to ChromaDB's similarity search function, which executes an HNSW-indexed approximate nearest-neighbour search and returns the top-$k$ chunks ranked by cosine similarity score. When the user has selected a subset of documents via the document selection panel, a metadata filter restricts the search to chunks belonging to the specified document IDs, enabling targeted querying of individual documents within a larger collection. The default retrieval depth of $k = 3$ was determined through empirical testing: increasing beyond three did not measurably improve answer quality for the document types tested but increased LLM token consumption and average latency by approximately 25\%.
+
+\subsection{Stage 7: Context Assembly and Answer Generation}
+
+Retrieved chunks undergo several pre-processing steps before submission to the LLM. Duplicates arising from the same source page are identified by chunk ID and discarded. Each retained chunk is truncated to a maximum of 500 characters, with an ellipsis appended if truncation occurs. This reduces LLM input token count by approximately 40\% relative to full-length chunks while preserving the most contextually salient content, which in well-structured text typically appears early in a passage. Each truncated chunk is annotated with a source marker of the form \texttt{[Source N --- filename, Page P]} to provide the LLM with explicit provenance information that it can reference in its answer.
+
+The annotated chunks are assembled into the context block of a structured prompt template. The system instruction within the prompt establishes that the model is an evidence-based document analyst, constrains it to answer exclusively from the provided context, specifies a precise fallback response when the query cannot be answered from the available material, and prohibits the introduction of external knowledge or unsupported inference. The user's original question and the recent conversation history are appended to complete the prompt.
+
+The assembled prompt is submitted to \texttt{llama-3.3-70b-versatile} via Groq's inference API, which delivers streaming token output at throughput exceeding 500 tokens per second. The streaming response is relayed to the frontend via Server-Sent Events as tokens are generated, enabling the chat interface to begin updating before generation is complete. Upon generation completion, a confidence level is computed from the distribution of retrieval similarity scores: high confidence is assigned when all retrieved scores exceed 0.70, medium when the mean score exceeds 0.50, and low otherwise. A per-source relevance explanation is also generated through a secondary LLM sub-call for each displayed citation.
+
+\subsection{Stage 8: Post-Processing and Response Delivery}
+
+The generated answer undergoes semantic re-ranking of its source citations. Each retrieved chunk is scored for semantic similarity to the generated answer text, and only the top three are retained for display. This post-generation filtering ensures that citations presented to the user are those most directly relevant to the specific content of the answer rather than simply those with the highest query similarity scores --- the two are not always identical, since the LLM may draw primarily from one or two chunks while the third-ranked chunk, though retrieved, contributes little to the final answer.
+
+Two contextually relevant follow-up question suggestions are generated by a secondary LLM call with a prompt requesting natural conversational extensions of the completed exchange, constrained to topics answerable from the document collection. The complete response is serialised to a structured JSON object and transmitted to the frontend. Concurrently, the user query and the assistant response are appended to the active session's JSON file in the chat sessions directory, ensuring that conversation history is preserved across page reloads and application restarts.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Module Design}
+
+DocInsight decomposes into six primary functional modules, each with a distinct responsibility boundary, a well-defined interface contract, and a clearly identified set of implementing components.
+
+\subsection{Document Processing Module}
+
+Responsible for receiving uploaded files and converting them into standardised \texttt{Document} objects for downstream consumption.
+
+\begin{itemize}
+\item \textbf{Components:} \texttt{upload.py} (reception and server-side validation), \texttt{document\_loader.py} (format-specific text extraction), \texttt{document\_store.py} (metadata persistence).
+
+\item \textbf{Format-Agnostic Output:} Uniform data structure regardless of input format (PDF, DOCX, TXT) ensures downstream pipeline isolation.
+
+\item \textbf{Extraction Paths:} PDF (\texttt{PyPDFLoader} with page-level granularity), DOCX (python-docx paragraph tree traversal), TXT (raw UTF-8 wrapping).
+
+\item \textbf{Error Handling:} Typed exceptions caught, logged with full traceback, converted to descriptive HTTP error responses before client transmission.
+\end{itemize}
+
+\subsection{Embedding Module}
+
+Responsible for producing dense vector representations of text for both retrieval and ingestion operations.
+
+\begin{itemize}
+\item \textbf{Implementation:} Singleton-pattern embedding object within \texttt{vector\_store.py}, initialised once at startup.
+
+\item \textbf{Public Interface:} \texttt{embed\_query} (single string $\rightarrow$ single vector), \texttt{embed\_documents} (list $\rightarrow$ batch-processed vectors for throughput efficiency).
+
+\item \textbf{Vector Normalisation:} All output vectors L2-normalised at generation point for efficient cosine similarity computation.
+\end{itemize}
+
+\subsection{Retrieval Module}
+
+Manages all ChromaDB vector database interactions with support for dense and hybrid retrieval modes.
+
+\begin{itemize}
+\item \textbf{Core Functions:} \texttt{ingest\_document} (document storage), \texttt{get\_relevant\_docs} (similarity retrieval), \texttt{delete\_document} (purge and cleanup).
+
+\item \textbf{Query Result Caching:} In-memory dictionary keyed by MD5 hash of (query, filter set) pair eliminates redundant vector computations for repeated queries.
+
+\item \textbf{Hybrid Retrieval (Optional):} \texttt{hybrid\_search.py} augments dense semantic search with BM25 sparse lexical scoring via weighted combination: $\text{score}_{\text{hybrid}} = \alpha \cdot \text{sim}_{\text{dense}} + (1 - \alpha) \cdot \text{score}_{\text{BM25}}$ (default $\alpha = 0.7$ prioritizes semantic similarity while preserving exact-match signals for domain terminology).
+\end{itemize}
+
+\subsection{Generation Module}
+
+Orchestrates the complete RAG inference cycle from question to grounded answer with multi-mode delivery.
+
+\begin{itemize}
+\item \textbf{Core Function:} \texttt{run\_rag\_chain} (question, optional session ID, optional document filters) $\rightarrow$ structured response (answer, sources, confidence, suggestions).
+
+\item \textbf{Streaming Variant:} \texttt{stream\_rag\_chain} async generator yields individual SSE events incrementally, enabling progressive frontend delivery per Stage 8.
+
+\item \textbf{LLM Abstraction:} \texttt{llm.py} factory function \texttt{get\_llm()} instantiates provider-specific clients (Groq $\rightarrow$ ChatGroq, Ollama $\rightarrow$ Ollama, OpenAI $\rightarrow$ ChatOpenAI) based on \texttt{LLM\_PROVIDER} environment variable, ensuring downstream code remains provider-agnostic.
+\end{itemize}
+
+\subsection{API Layer Module}
+
+Defines HTTP interface and handles client-server communication through FastAPI routers.
+
+\begin{itemize}
+\item \textbf{Five Routers:} Organised by functional domain (upload, chat, documents, sessions, advanced) with Pydantic-validated request models and structured error formatting.
+
+\item \textbf{Async I/O:} FastAPI's asynchronous architecture ensures I/O-bound operations (LLM calls) do not block event loop, enabling concurrent request processing.
+
+\item \textbf{Streaming Delivery:} \texttt{StreamingResponse} class wraps streaming RAG async generator, delivering SSE events to client as they are yielded, enabling progressive response rendering.
+\end{itemize}
+
+\subsection{Frontend Interface Module}
+
+Provides complete user-facing experience and manages client-side state for the chat interface.
+
+\begin{itemize}
+\item \textbf{State Management:} \texttt{App} component maintains: document list, message array, active session ID, selected document filters for scoped querying.
+
+\item \textbf{SSE Event Sequencing:} Custom consumer distinguishes three event types: \texttt{\_\_SOURCES\_\_} (citations first), plain text tokens (incremental), \texttt{\_\_SUGGESTIONS\_\_} (follow-up questions). Delivery order ensures provenance context appears before answer text completes generation.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{API Reference}
+
+The DocInsight backend exposes a RESTful API organised under the \texttt{/api} path prefix. The principal endpoints are documented in Table~\ref{tab:api}.
+
+\begin{table}[H]
+\centering
+\caption{DocInsight API Endpoint Reference}
+\label{tab:api}
+\renewcommand{\arraystretch}{1.45}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\hline
+POST   & /api/upload                          & Upload and ingest a document (PDF, DOCX, TXT) \\
+\hline
+GET    & /api/documents                        & List all uploaded documents with metadata \\
+\hline
+GET    & /api/documents/\{doc\_id\}/summary    & Retrieve AI-generated document summary \\
+\hline
+DELETE & /api/documents/\{doc\_id\}            & Delete a document and its stored embeddings \\
+\hline
+POST   & /api/chat                             & Synchronous chat query and response \\
+\hline
+POST   & /api/chat/stream                      & Streaming chat query via Server-Sent Events \\
+\hline
+POST   & /api/chat/export                      & Export a session as a formatted PDF \\
+\hline
+GET    & /api/sessions                         & List all saved conversation sessions \\
+\hline
+POST   & /api/sessions                         & Create a new conversation session \\
+\hline
+GET    & /api/sessions/\{session\_id\}         & Retrieve full message history of a session \\
+\hline
+PATCH  & /api/sessions/\{session\_id\}         & Rename an existing session \\
+\hline
+DELETE & /api/sessions/\{session\_id\}         & Delete a session and its message history \\
+\hline
+GET    & /health                               & Health check and system configuration snapshot \\
+\hline
+\end{tabularx}
+\end{table}
+
+Request and response bodies are defined by Pydantic models and are automatically included in the OpenAPI specification generated by FastAPI, accessible at \texttt{/docs} during development. The chat request body accepts a query string, an optional session identifier for conversational context, and an optional list of document ID filters for scoped retrieval. The chat response body returns the generated answer text, an array of source objects (each containing filename, page number, excerpt, and relevance explanation), a confidence classification, a floating-point relevance score, and an array of two follow-up question suggestions.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Technology Stack Justification}
+
+\subsection{FastAPI}
+
+FastAPI was selected as the backend web framework on the basis of three technical requirements. The most critical is native support for asynchronous I/O. LLM inference calls may take several seconds to complete, and they must not block the server from processing other incoming requests. Flask's synchronous request handling model would require a thread-per-request concurrency model, imposing unacceptable memory overhead under concurrent load. FastAPI, built on Starlette and Uvicorn, handles each request as a coroutine, suspending at \texttt{await} points during LLM calls and allowing the event loop to service other requests in the interim. The second requirement is automatic request validation through Pydantic integration, which rejects malformed requests before they reach handler code. The third is automatic OpenAPI documentation generation from codebase type annotations, eliminating manual documentation maintenance.
+
+\subsection{LangChain}
+
+LangChain provides a library of composable abstractions for the principal components of RAG systems: document loaders, text splitters, embedding model wrappers, vector store interfaces, and prompt template utilities. Using LangChain's RecursiveCharacterTextSplitter, \texttt{PyPDFLoader}, \texttt{HuggingFaceEmbeddings}, and Chroma integration avoids reimplementing these well-tested components and benefits from their interoperability. The framework's retriever abstraction ensures that the calling pipeline code is insulated from the specifics of the underlying vector store implementation.
+
+\subsection{ChromaDB}
+
+ChromaDB was selected over cloud-hosted vector databases such as Pinecone or Weaviate Cloud because it supports fully embedded, serverless local deployment. The privacy-first architecture of DocInsight mandates that document embeddings remain on the host machine; a cloud-hosted vector database would transmit embedding vectors --- which are reversible approximations of the source text --- to an external service. ChromaDB persists its data to the local filesystem, requires no external service or network connectivity, and integrates naturally with LangChain. For the document collection scales targeted by this project, ChromaDB's HNSW index provides retrieval latencies well within acceptable bounds on commodity hardware.
+
+\subsection{Sentence Transformers}
+
+The \texttt{all-MiniLM-L6-v2} model was selected for its favourable performance-to-cost ratio in the local deployment context. It is a 6-layer, 384-dimensional architecture distilled from a larger teacher model, trained on over one billion sentence pairs for semantic textual similarity. Its weights require approximately 80\,MB of disk space, it loads in under five seconds on commodity hardware, and it processes text at approximately 50 to 100 chunks per second on a modern multi-core CPU. The alternative of using a cloud embedding API would introduce per-token costs, network latency, and external transmission of document content, each of which conflicts with the system's design goals.
+
+\subsection{Groq API with LLaMA}
+
+Groq's inference API provides free-tier access to \texttt{llama-3.3-70b-versatile} at throughput exceeding 500 tokens per second, substantially faster than comparable offerings from other providers. The high throughput directly reduces the dominant latency contributor in the pipeline. The use of an open-weights model avoids proprietary lock-in and ensures that system behaviour is not subject to unilateral changes to a closed model. For fully offline deployments, Ollama is supported as a drop-in provider, running quantised LLaMA variants on local hardware without any external network dependency.
+
+\subsection{React 18 and Vite}
+
+React 18 was selected for its mature ecosystem and its hooks API, which provides an efficient model for managing the complex state of the chat interface. The streaming response in particular benefits from React's batched state update mechanism, which prevents unnecessary re-renders during rapid token delivery. Vite was selected as the build tool for its ES-module-native development server, which provides near-instantaneous hot module replacement. Its production build pipeline generates optimised, tree-shaken bundles, reducing the initial application load time compared to legacy bundlers.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Implementation Timeline}
+
+The development of DocInsight was structured into four sequential phases spanning fourteen weeks. Each phase had clearly defined entry and exit criteria, with each phase's deliverables serving as inputs to the subsequent phase.
+
+\subsection{Phase 1: Requirements Analysis (Weeks 1--2, Jan 7 -- Jan 21)}
+
+This phase was dedicated to formalising the project requirements, selecting and justifying the technology stack, configuring the development environment, and establishing the repository structure. Key activities:
+\begin{itemize}
+\item Literature review on RAG systems and dense vector retrieval
+\item Evaluation and selection of embedding model candidates
+\item Configuration of Python virtual environments and Node.js dependencies
+\item Definition of project directory structure and module boundaries
+\end{itemize}
+The exit criterion was a fully configured development environment with all dependencies installed and skeleton FastAPI and React applications capable of exchanging a health check request.
+
+\subsection{Phase 2: Backend and RAG Pipeline Implementation (Weeks 3--8, Jan 22 -- Mar 4)}
+
+This phase constituted the primary engineering effort. It encompassed:
+\begin{itemize}
+\item Implementation of all FastAPI router and service modules
+\item Complete document ingestion pipeline: parsing, chunking, embedding, ChromaDB storage
+\item RAG inference chain: question reformulation, retrieval, context assembly, LLM generation, confidence scoring, source filtering
+\item Session persistence system with concurrent unit testing
+\end{itemize}
+The exit criterion was the ability to upload a document and receive a grounded, source-attributed answer to a query.
+
+\subsection{Phase 3: Frontend Integration and System Assembly (Weeks 9--12, Mar 5 -- Apr 1)}
+
+This phase covered the construction of the React frontend and its integration with the backend API. Activities included the implementation of all user interface components, the SSE stream consumer, document management interface, session history navigation, confidence indicators, voice input support, dark mode theming, and PDF export functionality. End-to-end integration testing exercised the complete user workflow through the browser interface. The exit criterion was a fully functional system accessible and usable via the browser.
+
+\subsection{Phase 4: System Optimisation and Deployment (Weeks 13--16, Apr 2 -- May 7)}
+
+The final phase focused on system validation, performance profiling, and deployment readiness. Activities included:
+\begin{itemize}
+\item System testing and resolution of identified issues
+\item Empirical tuning of pipeline parameters (chunk size, overlap, top-$k$ depth)
+\item Implementation of query caching and context optimisations
+\item Performance profiling and latency optimisation
+\item Preparation of deployment documentation
+\end{itemize}
+The exit criterion was a system demonstrably meeting the sub-five-second end-to-end latency target across a representative query set.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth, height=0.75\textheight, keepaspectratio]{images/Gantt_Chart.png}
+    \caption{Project Implementation Schedule — Gantt Chart}
+    \label{fig:gantt_chart}
+\end{figure}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{System Optimisation Strategy}
+
+Five targeted optimisation strategies were incorporated into the system design to minimise end-to-end latency and improve user experience:
+
+\begin{itemize}
+\item \textbf{HNSW Approximate Nearest-Neighbour Search:} ChromaDB's HNSW index provides $O(\log n)$ query complexity, ensuring retrieval latency grows logarithmically with collection size rather than linearly. This enables sub-second retrieval even as indexed document collections expand significantly.
+
+\item \textbf{Query Result Caching:} In-memory dictionary keyed on MD5 hash of (query, filter set) eliminates redundant ChromaDB calls for repeated or similar queries within a session, resolving cache hits in under 1 millisecond versus 50--150 milliseconds for fresh retrievals.
+
+\item \textbf{Singleton Embedding Model:} Sentence Transformers model initialised once at application startup and reused across all requests, avoiding per-request cold-start overhead and amortising memory footprint across users.
+
+\item \textbf{Strategic Chunk Truncation:} Retrieved chunks truncated to 500 characters during context assembly reduces LLM prompt token count while preserving semantically central content, which concentrates near chunk beginnings in well-structured documents.
+
+\item \textbf{Streaming Response Architecture:} SSE protocol delivers answer tokens progressively to browser before generation completes, with source citations transmitted first to provide provenance context while answer text is still being generated, minimising perceived latency.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Summary}
+
+This chapter has presented a comprehensive and technically rigorous plan of work for DocInsight, covering the complete engineering lifecycle from foundational design philosophy through layered architectural decomposition to empirically validated performance characterisation. The chapter established the principled rationale for the Retrieval-Augmented Generation architecture, demonstrating rigorously how the RAG paradigm overcomes the three fundamental limitations of standalone LLM inference --- knowledge cutoff staleness, lost-in-the-middle phenomena in long contexts, and lack of source attribution --- without compromising answer accuracy, transparency, or operational efficiency.
+
+The three-tier system architecture was described in exhaustive detail, with the specific operational responsibilities of the presentation layer, the application layer's router and services sub-tiers, and the three-component data persistence layer clearly delineated with justified design choices. Three progressive levels of Data Flow Diagram provided rigorous mathematical representations of information movement through the system, from the high-level context diagram through the major process decomposition to the granular sub-process breakdown of the RAG inference chain, enabling visual understanding of data flow, control flow, and transformation semantics.
+
+The eight-stage end-to-end pipeline was examined comprehensively, with each transformation described in terms of its inputs, processing logic, implementation components, configuration parameters, empirical tuning rationale, and error handling strategy. The six functional modules were specified with their internal responsibilities, inter-module dependencies, interface contracts, and design trade-offs. The technology stack was justified on specific, verifiable technical grounds derived from the system's performance requirements, privacy constraints, and scalability objectives. The four-phase implementation timeline, presented alongside the Gantt chart, provides a transparent account of the project's execution structure, sequencing, and scheduling, enabling reproducibility and serving as a reference for future projects with similar architectural scope.
+
+The five targeted optimisation strategies --- HNSW approximate nearest-neighbour search, query result caching, singleton embedding model initialisation, strategic chunk truncation, and streaming response architecture --- collectively enable the system to achieve its performance objectives while maintaining the retrieval accuracy, answer quality, and source attribution fidelity required for a professional document intelligence platform.
+
+The implementation outcomes of this plan, including empirical validation of system performance, analysis of engineering challenges encountered and resolved, and lessons learned during development, are presented in the following chapter on Results and Discussion.
