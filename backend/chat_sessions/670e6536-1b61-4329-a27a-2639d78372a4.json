@@ -1,0 +1,81 @@
+{
+  "id": "670e6536-1b61-4329-a27a-2639d78372a4",
+  "doc_ids": [
+    "1e757392",
+    "c2295a86",
+    "eaedeccf",
+    "704fc688"
+  ],
+  "title": "what is machine learning",
+  "created_at": "2026-05-04T08:07:33.683517",
+  "messages": [
+    {
+      "role": "user",
+      "content": "what is machine learning",
+      "timestamp": "2026-05-04T08:07:39.686932",
+      "sources": [],
+      "suggestions": []
+    },
+    {
+      "role": "assistant",
+      "content": "**Definition of Machine Learning**\n\nMachine learning is a subset of artificial intelligence (AI) that enables computers to learn from and make decisions based on data, without being explicitly programmed. It involves developing algorithms that allow computers to process and learn from data automatically.\n\n**Purpose and Functionality**\n\nThe aim of machine learning is to enable computers to learn from their experiences and improve their performance over time without human intervention. This is achieved by creating algorithms that can learn from data and make predictions or decisions based on that data.\n\n**Alternative Definitions**\n\nMachine learning can also be defined as the science (and art) of programming computers so they can learn from data. It is the field of study that gives computers the ability to learn without being explicitly programmed. A computer program is said to learn from experience if its performance on a task improves over time, as measured by a performance measure.\n\n**Key Characteristics**\n\n* Enables computers to learn from data without being explicitly programmed\n* Involves developing algorithms that allow computers to process and learn from data automatically\n* Aims to improve computer performance over time without human intervention\n* Can be categorized into different approaches, such as instance-based learning and model-based learning.",
+      "timestamp": "2026-05-04T08:07:39.697728",
+      "sources": [
+        {
+          "filename": "Notes.pdf",
+          "page": 1,
+          "doc_id": "eaedeccf",
+          "excerpt": "DEPT. OF AIML , JNNCE 1 \n \n \nMACHINE LEARNING STUDY MATERIAL, \n \nMODULE I: \n \nDefinitions of Machine Learning \n Machine Learning  is the science (and art) of programming computers so they \ncan learn from data. \n Machine Learning is the field of study that gives computers the ability to learn \nwithou...",
+          "relevance_score": 0.7792769933553552,
+          "evidence": "Machine Learning is the field of study that gives computers the ability to learn \nwithout being explicitly programmed",
+          "keywords": [
+            "definition",
+            "machine",
+            "learning",
+            "machine",
+            "learning"
+          ],
+          "explanation": "This source supports the definition part, helping us understand what machine learning is."
+        },
+        {
+          "filename": "Machine_Learning_Notes.pdf",
+          "page": 30,
+          "doc_id": "1e757392",
+          "excerpt": "http://www.knowledgegate.in/gate\nMachine learning\u2022Machine learning is a subset of artificial intelligence (AI) that enables computers to learn from and make decisions based on data, without being explicitly programmed. \u2022Definition: Machine learning involves developing algorithms that allow computers...",
+          "relevance_score": 0.7431070241266005,
+          "evidence": "in/gate\nMachine learning\u2022Machine learning is a subset of artificial intelligence (AI) that enables computers to learn from and make decisions based on data, without being explicitly programmed",
+          "keywords": [
+            "definition",
+            "machine",
+            "learning",
+            "machine",
+            "learning"
+          ],
+          "explanation": "This source supports the definition part, helping us understand what machine learning is."
+        },
+        {
+          "filename": "Notes.pdf",
+          "page": 12,
+          "doc_id": "eaedeccf",
+          "excerpt": "DEPT. OF AIML , JNNCE 12 \n \n \nMACHINE LEARNING STUDY MATERIAL, \nOne more way to categorize Machine Learning systems is by how they  generalize. There \nare two main approaches to generalization: instance -based learning and model -based \nlearning. \nModel-Based Learning \nModel-based learning involves ...",
+          "relevance_score": 0.7238442834745293,
+          "evidence": "Model-Based Learning \nModel-based learning involves creating a mathematical model that can predict outcomes \nbased on input data",
+          "keywords": [
+            "machine",
+            "learning",
+            "machine",
+            "learning",
+            "learn"
+          ],
+          "explanation": "This source supports the definition by explaining a type of machine learning process."
+        }
+      ],
+      "suggestions": [
+        "How do algorithms learn from data?",
+        "What are key characteristics?"
+      ],
+      "confidence": "medium",
+      "relevance_score": 0.6
+    }
+  ]
+}
